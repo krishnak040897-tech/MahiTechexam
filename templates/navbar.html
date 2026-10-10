@@ -1,0 +1,123 @@
+<!-- ============ DESKTOP TOPBAR ============ -->
+<header class="topbar">
+  <div class="container topbar-in">
+    <a class="brand" href="{{ url_for('home') }}" aria-label="MahiTech home">
+      <img class="brand-logo" src="https://i.ibb.co/kswZFkMV/Glossy-Mahi-Tech-Graduate-Logo.png" alt="MahiTech">
+    </a>
+
+    <form class="nav-search" method="get" action="{{ url_for('browse') }}" role="search">
+      <svg class="ic ic-s"><use href="#i-search"></use></svg>
+      <input class="inp" type="text" name="q"
+             value="{{ request.args.get('q','') if request.endpoint == 'browse' else '' }}"
+             placeholder="Search materials…" autocomplete="off" aria-label="Search materials">
+    </form>
+
+    <nav class="topnav" aria-label="Primary">
+      <a href="{{ url_for('home') }}" class="{{ 'on' if request.endpoint=='home' }}">Home</a>
+      <a href="{{ url_for('browse') }}" class="{{ 'on' if request.endpoint=='browse' }}">Browse</a>
+      <a href="{{ url_for('exams_browse') }}" class="{{ 'on' if request.endpoint=='exams_browse' }}">Exams</a>
+      {% if session.get('user_id') %}
+        <a href="{{ url_for('profile') }}" class="{{ 'on' if request.endpoint=='profile' }}">Profile</a>
+        <a href="{{ url_for('my_purchases') }}" class="{{ 'on' if request.endpoint=='my_purchases' }}">My Purchases</a>
+        <a href="{{ url_for('my_exams') }}" class="{{ 'on' if request.endpoint in ('my_exams','exam_start','exam_take','exam_result') }}">My Exams</a>
+      {% endif %}
+      {% if is_admin %}
+        <a href="{{ url_for('admin_profile') }}" class="{{ 'on' if request.endpoint and request.endpoint.startswith('admin_') }}">
+          <svg class="ic ic-xs"><use href="#i-shield"></use></svg>Admin</a>
+      {% endif %}
+    </nav>
+
+    <div class="topacts">
+      {% if is_admin %}
+        <span class="pill"><svg class="ic ic-xs" style="color:#B45309"><use href="#i-shield"></use></svg>Admin</span>
+        <a class="btn btn-sec btn-sm" href="{{ url_for('logout') }}">
+          <svg class="ic ic-xs"><use href="#i-logout"></use></svg>Logout</a>
+      {% elif session.get('user_id') %}
+        <a class="pill pill-link" href="{{ url_for('profile') }}" title="Your account">
+          <span class="pill-ava">{{ (session.get('user_name') or 'U')[:1]|upper }}</span>
+          <span>{{ session.get('user_name') }}</span>
+        </a>
+        <a class="btn btn-sec btn-sm" href="{{ url_for('logout') }}">
+          <svg class="ic ic-xs"><use href="#i-logout"></use></svg>Logout</a>
+      {% else %}
+        <a class="btn btn-ghost btn-sm" href="{{ url_for('login') }}">Login</a>
+        <a class="btn btn-p btn-sm" href="{{ url_for('register') }}">
+          <svg class="ic ic-xs"><use href="#i-user-plus"></use></svg>Get started</a>
+      {% endif %}
+    </div>
+
+    <button class="burger" id="navOpen" aria-label="Open menu">
+      <svg class="ic"><use href="#i-menu"></use></svg>
+    </button>
+  </div>
+</header>
+
+<!-- ============ MOBILE SIDEBAR ============ -->
+<div class="scrim" id="scrim"></div>
+<aside class="sidebar" id="sidebar" aria-hidden="true">
+  <div class="side-head">
+    <a class="brand" href="{{ url_for('home') }}" aria-label="MahiTech home">
+      <img class="brand-logo" src="https://i.ibb.co/kswZFkMV/Glossy-Mahi-Tech-Graduate-Logo.png" alt="MahiTech">
+    </a>
+    <button class="side-close" id="navClose" aria-label="Close menu">
+      <svg class="ic"><use href="#i-x"></use></svg>
+    </button>
+  </div>
+  <nav class="side-nav" aria-label="Mobile">
+    <a href="{{ url_for('home') }}" class="{{ 'on' if request.endpoint=='home' }}">
+      <svg class="ic ic-s"><use href="#i-grid"></use></svg>Home</a>
+    <a href="{{ url_for('browse') }}" class="{{ 'on' if request.endpoint=='browse' }}">
+      <svg class="ic ic-s"><use href="#i-search"></use></svg>Browse materials</a>
+    <a href="{{ url_for('exams_browse') }}" class="{{ 'on' if request.endpoint=='exams_browse' }}">
+      <svg class="ic ic-s"><use href="#i-pen"></use></svg>Exam papers</a>
+    {% if session.get('user_id') %}
+      <a href="{{ url_for('profile') }}" class="{{ 'on' if request.endpoint=='profile' }}">
+        <svg class="ic ic-s"><use href="#i-user"></use></svg>My profile</a>
+      <a href="{{ url_for('my_purchases') }}" class="{{ 'on' if request.endpoint=='my_purchases' }}">
+        <svg class="ic ic-s"><use href="#i-bag"></use></svg>My Purchases</a>
+      <a href="{{ url_for('my_exams') }}" class="{{ 'on' if request.endpoint in ('my_exams','exam_start','exam_take','exam_result') }}">
+        <svg class="ic ic-s"><use href="#i-pen"></use></svg>My Exams</a>
+    {% endif %}
+    {% if is_admin %}
+      <div class="side-sep"></div>
+      <a href="{{ url_for('admin_profile') }}" class="{{ 'on' if request.endpoint and request.endpoint.startswith('admin_') }}">
+        <svg class="ic ic-s"><use href="#i-shield"></use></svg>Admin panel</a>
+    {% endif %}
+  </nav>
+  <div class="side-foot">
+    {% if is_admin %}
+      <div class="side-user"><svg class="ic ic-s" style="color:#B45309"><use href="#i-shield"></use></svg>Admin</div>
+      <a class="btn btn-sec btn-bl" href="{{ url_for('logout') }}">
+        <svg class="ic ic-s"><use href="#i-logout"></use></svg>Logout</a>
+    {% elif session.get('user_id') %}
+      <div class="side-user"><svg class="ic ic-s"><use href="#i-user"></use></svg>{{ session.get('user_name') }}</div>
+      <a class="btn btn-sec btn-bl" href="{{ url_for('logout') }}">
+        <svg class="ic ic-s"><use href="#i-logout"></use></svg>Logout</a>
+    {% else %}
+      <a class="btn btn-p btn-bl" href="{{ url_for('login') }}">
+        <svg class="ic ic-s"><use href="#i-login"></use></svg>Login</a>
+      <a class="btn btn-sec btn-bl" href="{{ url_for('register') }}">
+        <svg class="ic ic-s"><use href="#i-user-plus"></use></svg>Create account</a>
+    {% endif %}
+  </div>
+</aside>
+
+<!-- ============ MOBILE BOTTOM TAB BAR ============ -->
+<nav class="bnav" aria-label="Bottom navigation">
+  <a href="{{ url_for('home') }}" class="{{ 'on' if request.endpoint=='home' }}">
+    <svg class="ic"><use href="#i-grid"></use></svg>Home</a>
+  <a href="{{ url_for('browse') }}" class="{{ 'on' if request.endpoint=='browse' }}">
+    <svg class="ic"><use href="#i-search"></use></svg>Browse</a>
+
+  {% if is_admin and not session.get('user_id') %}
+    <a href="{{ url_for('admin_purchases') }}" class="{{ 'on' if request.endpoint=='admin_purchases' }}">
+      <svg class="ic"><use href="#i-bag"></use></svg>Purchases</a>
+    <a href="{{ url_for('admin_profile') }}" class="{{ 'on' if request.endpoint and request.endpoint.startswith('admin_') and request.endpoint != 'admin_purchases' }}">
+      <svg class="ic"><use href="#i-shield"></use></svg>Admin</a>
+  {% else %}
+    <a href="{{ url_for('exams_browse') }}" class="{{ 'on' if request.endpoint in ('exams_browse','my_exams','exam_start','exam_take','exam_result') }}">
+      <svg class="ic"><use href="#i-pen"></use></svg>Exams</a>
+    <a href="{{ url_for('profile') if session.get('user_id') else url_for('login') }}" class="{{ 'on' if request.endpoint=='profile' }}">
+      <svg class="ic"><use href="#i-user"></use></svg>Account</a>
+  {% endif %}
+</nav>

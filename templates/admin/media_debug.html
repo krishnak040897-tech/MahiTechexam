@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+{% block title %}Media debug — Admin — MahiTech{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="page">
+    <a class="backlink" href="{{ url_for('admin_profile') }}">
+      <svg class="ic ic-xs"><use href="#i-chevron-r"></use></svg>Admin profile</a>
+    <h1>Media / Cloudinary debug</h1>
+    <p>Every stored file (products + exams): what the DB stores, the URL the page
+       uses, and whether Cloudinary actually serves it. Fix anything marked ✗.</p>
+  </div>
+
+  <div class="stats" style="margin-bottom:16px">
+    <div class="stat">
+      <span class="stat-ic t-green"><svg class="ic"><use href="#i-check-c"></use></svg></span>
+      <div><b>{{ ok }}</b><span>Working files</span></div>
+    </div>
+    <div class="stat">
+      <span class="stat-ic t-rose"><svg class="ic"><use href="#i-alert"></use></svg></span>
+      <div><b>{{ bad }}</b><span>Broken files</span></div>
+    </div>
+    <div class="stat">
+      <span class="stat-ic t-blue"><svg class="ic"><use href="#i-image"></use></svg></span>
+      <div><b>{{ cloud_count }}</b><span>On Cloudinary</span></div>
+    </div>
+    <div class="stat">
+      <span class="stat-ic t-amber"><svg class="ic"><use href="#i-file"></use></svg></span>
+      <div><b>{{ local_count }}</b><span>Local only</span></div>
+    </div>
+  </div>
+
+  <div class="tbl-wrap only-desktop">
+    <table class="rt">
+      <thead><tr><th>Item</th><th>File</th><th>Stored reference</th><th>URL used on page</th><th>Status</th></tr></thead>
+      <tbody>
+        {% for r in rows %}
+          <tr>
+            <td>{{ r.item }}</td>
+            <td><span class="badge">{{ r.kind }}</span></td>
+            <td class="muted small" style="word-break:break-all">{{ r.ref or '—' }}</td>
+            <td class="muted small" style="word-break:break-all">
+              {% if r.url and r.url.startswith('http') %}
+                <a href="{{ r.url }}" target="_blank">{{ r.url[:70] }}…</a>
+              {% else %}{{ r.url or '—' }}{% endif %}</td>
+            <td>
+              {% if not r.ref %}<span class="badge">Empty</span>
+              {% elif r.status == 200 %}<span class="badge badge-green">✓ {{ r.status }}</span>
+              {% else %}<span class="badge badge-red">✗ {{ r.status or 'ERR' }}</span>{% endif %}
+              {% if r.note %}<div class="muted small" style="margin-top:3px">{{ r.note }}</div>{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="only-mobile">
+    {% for r in rows %}
+      <div style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:8px">
+        <div style="display:flex;justify-content:space-between;gap:8px;align-items:center">
+          <b style="font-size:13px">{{ r.item }}</b>
+          {% if not r.ref %}<span class="badge">Empty</span>
+          {% elif r.status == 200 %}<span class="badge badge-green">✓ {{ r.status }}</span>
+          {% else %}<span class="badge badge-red">✗ {{ r.status or 'ERR' }}</span>{% endif %}
+        </div>
+        <div class="muted small" style="margin-top:4px;word-break:break-all">
+          {{ r.kind }} · {{ r.ref or '—' }}</div>
+        {% if r.note %}<div class="small" style="color:var(--error);margin-top:3px">{{ r.note }}</div>{% endif %}
+        {% if r.url and r.url.startswith('http') %}
+          <a class="small" href="{{ r.url }}" target="_blank"
+             style="color:var(--primary);word-break:break-all">open URL</a>{% endif %}
+      </div>
+    {% endfor %}
+  </div>
+
+  <p class="small muted" style="margin-top:14px">
+    Cloudinary storage: {{ 'ENABLED' if health.cloudinary_enabled else 'OFF (local mode)' }}
+    {% if health.last_error %} · last error: {{ health.last_error }}{% endif %}
+  </p>
+</div>
+{% endblock %}

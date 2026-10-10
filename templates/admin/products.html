@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% from '_art.html' import media %}
+{% block title %}Products — Admin — MahiTech{% endblock %}
+{% block content %}
+<div class="container">
+
+  <!-- header with back-to-profile link -->
+  <div class="page row">
+    <div>
+      <a href="{{ url_for('admin_profile') }}"
+         style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;color:var(--text-3);margin-bottom:4px">
+        <svg class="ic ic-xs" style="transform:rotate(180deg)"><use href="#i-chevron-r"></use></svg>Admin profile
+      </a>
+      <h1>Product management</h1>
+      <p>{{ products|length }} product(s) — full CRUD with PDF &amp; video files</p>
+    </div>
+    <a class="btn btn-p" href="{{ url_for('admin_add_product') }}">
+      <svg class="ic ic-s"><use href="#i-plus"></use></svg>Add product</a>
+  </div>
+
+  {% if products %}
+    <!-- desktop: table -->
+    <div class="tbl-wrap only-desktop">
+      <table class="rt">
+        <thead><tr><th></th><th>Title</th><th>Type</th><th>Price</th><th>Files</th><th style="width:118px">Actions</th></tr></thead>
+        <tbody>
+          {% for p in products %}
+            <tr>
+              <td><span class="mini-art">{{ media(p) }}</span></td>
+              <td><div><strong>{{ p.title }}</strong><div class="muted small">{{ p.category }} · {{ p.created_at[:10] }}</div></div></td>
+              <td><span class="badge badge-green">{{ {'pdf':'PDF','video':'Video','both':'PDF+Video'}[p.content_type] }}</span></td>
+              <td><strong>₹{{ p.price|inr }}</strong></td>
+              <td>
+                <span style="display:inline-flex;gap:7px;color:var(--text-3)">
+                  {% if p.thumbnail %}<svg class="ic ic-s"><use href="#i-image"></use></svg>{% endif %}
+                  {% if p.pdf_file %}<svg class="ic ic-s"><use href="#i-file"></use></svg>{% endif %}
+                  {% if p.video_file %}<svg class="ic ic-s"><use href="#i-film"></use></svg>{% endif %}
+                  {% if not p.thumbnail and not p.pdf_file and not p.video_file %}<span class="small muted">—</span>{% endif %}
+                </span>
+              </td>
+              <td>
+                <div style="display:inline-flex;gap:5px">
+                  <a class="btn btn-ghost btn-ic" href="{{ url_for('product', product_id=p.id) }}" title="Preview (full access)">
+                    <svg class="ic ic-s"><use href="#i-eye"></use></svg></a>
+                  <a class="btn btn-sec btn-ic" href="{{ url_for('admin_edit_product', product_id=p.id) }}" title="Edit">
+                    <svg class="ic ic-s"><use href="#i-edit"></use></svg></a>
+                  <form method="post" action="{{ url_for('admin_delete_product', product_id=p.id) }}"
+                        data-confirm='Delete "{{ p.title }}" permanently? Its files will also be removed.'>
+                    <button class="btn btn-danger btn-ic" title="Delete">
+                      <svg class="ic ic-s"><use href="#i-trash"></use></svg></button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- mobile: one-by-one rows with arrow (tap to expand actions) -->
+    <div class="only-mobile">
+      <div class="alist">
+        {% for p in products %}
+          <details class="drow">
+            <summary class="drow-sum">
+              <span class="lrow-art">{{ media(p) }}</span>
+              <span class="lrow-main">
+                <b>{{ p.title }}</b>
+                <small>{{ p.category }} · added {{ p.created_at[:10] }}</small>
+                <span class="mtags">
+                  <span class="badge badge-green">{{ {'pdf':'PDF','video':'Video','both':'PDF+Video'}[p.content_type] }}</span>
+                  {% if p.pdf_file %}<span class="badge"><svg class="ic ic-xs"><use href="#i-file"></use></svg>PDF</span>{% endif %}
+                  {% if p.video_file %}<span class="badge"><svg class="ic ic-xs"><use href="#i-film"></use></svg>Video</span>{% endif %}
+                </span>
+              </span>
+              <span class="lrow-end"><span class="amt">₹{{ p.price|inr }}</span></span>
+              <svg class="ic chev"><use href="#i-chevron-r"></use></svg>
+            </summary>
+            <div class="drow-body">
+              <div class="drow-acts">
+                <a class="btn btn-sec" href="{{ url_for('product', product_id=p.id) }}">
+                  <svg class="ic ic-xs"><use href="#i-eye"></use></svg>View</a>
+                <a class="btn btn-p" href="{{ url_for('admin_edit_product', product_id=p.id) }}">
+                  <svg class="ic ic-xs"><use href="#i-edit"></use></svg>Edit</a>
+                <form method="post" action="{{ url_for('admin_delete_product', product_id=p.id) }}"
+                      data-confirm='Delete "{{ p.title }}" permanently? Its files will also be removed.'>
+                  <button class="btn btn-danger"><svg class="ic ic-xs"><use href="#i-trash"></use></svg>Delete</button>
+                </form>
+              </div>
+            </div>
+          </details>
+        {% endfor %}
+      </div>
+    </div>
+  {% else %}
+    <div class="empty">
+      <svg class="empty-art" viewBox="0 0 160 110"><use href="#v-empty"></use></svg>
+      <p>No products yet — add your first study material.</p>
+      <a class="btn btn-p btn-sm" href="{{ url_for('admin_add_product') }}">Add product</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

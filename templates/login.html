@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Login — MahiTech{% endblock %}
+{% block content %}
+<div class="auth">
+  <svg class="auth-art" viewBox="0 0 200 120" aria-hidden="true"><use href="#v-auth"></use></svg>
+  <div class="form-head">
+    <h1>Welcome back</h1>
+    <p>Log in to access your study materials</p>
+  </div>
+  <form method="post">
+    <input type="hidden" name="next" value="{{ request.args.get('next','') }}">
+    <div class="f"><label>Username or Email</label>
+      <input class="inp" type="text" name="username" required autofocus autocomplete="username" placeholder="Enter username or email"></div>
+    <div class="f"><label>Password</label>
+      <input class="inp" type="password" name="password" required autocomplete="current-password" placeholder="Enter your password"></div>
+    <button class="btn btn-p btn-bl">Login</button>
+  </form>
+  <p class="alt">New to MahiTech? <a href="{{ url_for('register') }}">Create an account</a></p>
+</div>
+{% endblock %}

@@ -1,0 +1,158 @@
+{% extends 'base.html' %}
+{% block title %}Exam Papers — MahiTech{% endblock %}
+{% block content %}
+<style>
+.xcard{background:#fff;border:1px solid var(--border);border-radius:16px;padding:16px;
+       display:flex;flex-direction:column;gap:8px;transition:border-color .2s}
+.xcard:hover{border-color:var(--primary)}
+.xthumb{position:relative;aspect-ratio:16/10;background:var(--bg-2);border:1px solid var(--border);
+        border-radius:12px;overflow:hidden;margin-bottom:2px}
+.xtags{display:flex;gap:5px;flex-wrap:wrap}
+.xfoot{margin-top:auto;display:flex;align-items:center;justify-content:space-between;gap:8px;padding-top:4px}
+</style>
+<div class="container">
+  <div class="page">
+    <h1>Exam papers</h1>
+    <p>{{ exams|length }} paper(s) — buy a paper, then take it any time. Retakes included.</p>
+  </div>
+
+  {% if exams %}
+    <div class="grid">
+      {% for e in exams %}
+        <article class="xcard">
+          {% if e.thumbnail %}
+            <div class="xthumb">
+              <img class="pm-img" src="{{ e.thumbnail|thumb_url }}" alt="{{ e.title }}"
+                   decoding="async" loading="lazy"
+                   onerror="this.style.display='none'">
+            </div>
+          {% endif %}
+          <div class="xtags">
+            <span class="badge badge-green"><svg class="ic ic-xs"><use href="#i-pen"></use></svg>MCQ Paper</span>
+            <span class="badge">{{ e.q_count }} Q{{ 's' if e.q_count != 1 else '' }}</span>
+            <span class="badge">{{ e.duration_minutes }} min</span>
+            <span class="badge">Pass {{ e.pass_percent }}%</span>
+          </div>
+          <h3 class="card-title">{{ e.title }}</h3>
+          {% if e.description %}<p class="card-desc">{{ e.description[:110] }}</p>{% endif %}
+          <div class="xfoot">
+            <span class="price">
+              {{ 'Free' if e.price == 0 else '₹' ~ (e.price|inr) }}
+            </span>
+            {% if owned_ids and e.id in owned_ids %}
+              <a class="btn btn-p btn-sm" href="{{ url_for('exam_start', exam_id=e.id) }}">
+                <svg class="ic ic-xs"><use href="#i-bolt"></use></svg>Take exam</a>
+            {% elif is_admin %}
+              <a class="btn btn-sec btn-sm" href="{{ url_for('exam_start', exam_id=e.id) }}">
+                <svg class="ic ic-xs"><use href="#i-eye"></use></svg>Preview</a>
+            {% elif session.get('user_id') %}
+              <button class="btn btn-p btn-sm" data-buy-exam data-exam-id="{{ e.id }}">
+                <svg class="ic ic-xs"><use href="#i-cart"></use></svg>
+                {{ 'Take free' if e.price == 0 else 'Buy — ₹' ~ (e.price|inr) }}</button>
+            {% else %}
+              <a class="btn btn-sec btn-sm" href="{{ url_for('login', next=request.path) }}">
+                <svg class="ic ic-xs"><use href="#i-login"></use></svg>Login to buy</a>
+            {% endif %}
+          </div>
+        </article>
+      {% endfor %}
+    </div>
+  {% else %}
+    <div class="empty">
+      <svg class="empty-art" viewBox="0 0 160 110"><use href="#v-empty"></use></svg>
+      <p>No exam papers published yet — check back soon.</p>
+    </div>
+  {% endif %}
+</div>
+
+<script>
+/* exam paper checkout (Razorpay) — same secure flow as products */
+(function () {
+  "use strict";
+  function setDisabled(btns, state) { btns.forEach(b => { b.disabled = state; }); }
+
+  document.querySelectorAll("[data-buy-exam]").forEach(function (btn) {
+    btn.addEventListener("click", async function () {
+      if (btn.disabled) return;
+      const all = Array.prototype.slice.call(document.querySelectorAll("[data-buy-exam]"));
+      setDisabled(all, true);
+      const eid = btn.getAttribute("data-exam-id");
+      try {
+        const res = await fetch("/api/create-exam-order/" + eid, { method: "POST" });
+        let data = {}; try { data = await res.json(); } catch (_) {}
+        if (!res.ok) { toast(data.error || "Could not start checkout.", "error"); setDisabled(all, false); return; }
+
+        if (data.success && data.redirect_url) {
+          toast("Exam unlocked!", "success");
+          setTimeout(() => { window.location.href = data.redirect_url; }, 700);
+          return;
+        }
+
+        if (data.demo) {
+          const v = await fetch("/api/verify-exam-payment", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ demo: true, order_id: data.order_id })
+          });
+          let vd = {}; try { vd = await v.json(); } catch (_) {}
+          if (v.ok && vd.success) {
+            toast("Exam unlocked!", "success");
+            setTimeout(() => { window.location.href = vd.redirect_url; }, 700);
+          } else {
+            toast(vd.error || "Demo checkout failed.", "error");
+            setDisabled(all, false);
+          }
+          return;
+        }
+
+        if (typeof Razorpay === "undefined") {
+          toast("Payment library failed to load. Check your connection.", "error");
+          setDisabled(all, false);
+          return;
+        }
+
+        const rzp = new Razorpay({
+          key: data.key,
+          order_id: data.order_id,
+          amount: data.amount,
+          currency: data.currency,
+          name: "MahiTech",
+          description: data.description || "Exam paper",
+          prefill: data.prefill || {},
+          theme: { color: "#10A37F" },
+          handler: async function (resp) {
+            try {
+              const v = await fetch("/api/verify-exam-payment", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(resp)
+              });
+              let vd = {}; try { vd = await v.json(); } catch (_) {}
+              if (v.ok && vd.success) {
+                toast("Exam unlocked!", "success");
+                setTimeout(() => { window.location.href = vd.redirect_url; }, 700);
+              } else {
+                toast(vd.error || "Payment verification failed.", "error");
+                setDisabled(all, false);
+              }
+            } catch (err) {
+              toast("Verification request failed.", "error");
+              setDisabled(all, false);
+            }
+          },
+          modal: { ondismiss: function () { setDisabled(all, false); } }
+        });
+        rzp.on("payment.failed", function () {
+          toast("Payment failed. Please try again.", "error");
+          setDisabled(all, false);
+        });
+        rzp.open();
+      } catch (err) {
+        toast("Network error. Please try again.", "error");
+        setDisabled(all, false);
+      }
+    });
+  });
+})();
+</script>
+{% endblock %}

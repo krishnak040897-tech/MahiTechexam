@@ -1,0 +1,107 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit' if product else 'Add' }} Product — Admin{% endblock %}
+{% block content %}
+<div class="container">
+<form class="form-page" method="post" enctype="multipart/form-data">
+  <div class="form-head">
+    <svg class="auth-art" viewBox="0 0 160 110" style="width:130px" aria-hidden="true"><use href="#v-empty"></use></svg>
+    <h1>{{ 'Edit product' if product else 'Add new product' }}</h1>
+    <p>{{ 'Update details and replace files any time' if product else 'Title, pricing, category and content files' }}</p>
+  </div>
+
+  <div class="fgrid">
+    <div class="f full"><label>Product Title</label>
+      <input class="inp" type="text" name="title" required value="{{ product.title if product else '' }}"
+             placeholder="e.g. SSC CGL 2025 Complete Study Kit"></div>
+
+    <div class="f"><label>Category</label>
+      <select class="inp" name="category" required>
+        {% for c in categories %}
+          <option value="{{ c }}" {{ 'selected' if product and product.category==c }}>{{ c }}</option>
+        {% endfor %}
+      </select></div>
+
+    <div class="f"><label>Price (₹)</label>
+      <input class="inp" type="number" name="price" min="0" step="0.01" required
+             value="{{ product.price if product else '' }}" placeholder="e.g. 499"></div>
+
+    <div class="f full"><label>Content Type</label>
+      <select class="inp" name="content_type" required>
+        <option value="pdf"   {{ 'selected' if product and product.content_type=='pdf' }}>PDF Notes</option>
+        <option value="video" {{ 'selected' if product and product.content_type=='video' }}>Video Course</option>
+        <option value="both"  {{ 'selected' if product and product.content_type=='both' }}>PDF + Video</option>
+      </select></div>
+
+    <div class="f full">
+      <label>Thumbnail <span class="muted small" style="font-weight:400">(optional — a vector image is used if empty)</span></label>
+      <label class="up-field">
+        <input type="file" name="thumbnail" accept="image/*">
+        <span class="up-ic"><svg class="ic ic-s"><use href="#i-image"></use></svg></span>
+        <span class="up-txt"><b class="up-name" data-default="Choose thumbnail image">
+          {{ product.thumbnail if product and product.thumbnail else 'Choose thumbnail image' }}</b>
+          <small>PNG, JPG or WEBP · 800×500 or larger for best clarity</small></span>
+      </label>
+    </div>
+
+    <!-- live thumbnail preview (current image on edit, chosen image on select) -->
+    <div class="f full" id="thumbPrevBox"
+         style="display:{{ 'block' if product and product.thumbnail else 'none' }}">
+      <label>Thumbnail preview</label>
+      <div style="width:100%;max-width:280px;aspect-ratio:16/10;border:1px solid var(--border);
+                  border-radius:12px;overflow:hidden;background:var(--bg-2)">
+        <img id="thumbPrev" style="width:100%;height:100%;object-fit:cover;object-position:center"
+             alt="Thumbnail preview" src="{{ (product.thumbnail if product and product.thumbnail else '')|thumb_url }}">
+      </div>
+    </div>
+
+    <div class="f full">
+      <label>PDF File</label>
+      <label class="up-field">
+        <input type="file" name="pdf_file" accept=".pdf">
+        <span class="up-ic"><svg class="ic ic-s"><use href="#i-file"></use></svg></span>
+        <span class="up-txt"><b class="up-name" data-default="Choose PDF file">
+          {{ product.pdf_file if product and product.pdf_file else 'Choose PDF file' }}</b>
+          <small>.pdf only</small></span>
+      </label>
+    </div>
+
+    <div class="f full">
+      <label>Video File</label>
+      <label class="up-field">
+        <input type="file" name="video_file" accept="video/*">
+        <span class="up-ic"><svg class="ic ic-s"><use href="#i-film"></use></svg></span>
+        <span class="up-txt"><b class="up-name" data-default="Choose video file">
+          {{ product.video_file if product and product.video_file else 'Choose video file' }}</b>
+          <small>MP4, WEBM, MOV or MKV</small></span>
+      </label>
+    </div>
+
+    <div class="f full"><label>Description</label>
+      <textarea class="inp" name="description" rows="4"
+                placeholder="Describe what this material covers…">{{ product.description if product else '' }}</textarea></div>
+  </div>
+
+  <div class="form-acts">
+    <button class="btn btn-p"><svg class="ic ic-s"><use href="#i-check"></use></svg>
+      {{ 'Save changes' if product else 'Create product' }}</button>
+    <a class="btn btn-sec" href="{{ url_for('admin_products') }}">Cancel</a>
+  </div>
+</form>
+</div>
+
+<script>
+/* live thumbnail preview */
+(function () {
+  const inp = document.querySelector('input[name="thumbnail"]');
+  const box = document.getElementById("thumbPrevBox");
+  const img = document.getElementById("thumbPrev");
+  if (!inp || !box || !img) return;
+  inp.addEventListener("change", () => {
+    if (inp.files && inp.files[0]) {
+      img.src = URL.createObjectURL(inp.files[0]);
+      box.style.display = "block";
+    }
+  });
+})();
+</script>
+{% endblock %}

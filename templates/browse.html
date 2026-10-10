@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% from '_art.html' import card %}
+{% block title %}Browse — MahiTech{% endblock %}
+{% set CAT_ICON = {'Government Exams':'i-landmark','Competitive Exams':'i-zap',
+                   'Entrance Exams':'i-pen','Academic Preparation':'i-book',
+                   'Career Preparation':'i-briefcase'} %}
+{% set CAT_TINT = {'Government Exams':'t-blue','Competitive Exams':'t-amber',
+                   'Entrance Exams':'t-purple','Academic Preparation':'t-green',
+                   'Career Preparation':'t-rose'} %}
+
+{% block content %}
+<div class="container">
+  <div class="page">
+    <h1>Browse materials</h1>
+    <p>{{ products|length }} result(s){{ ' for "' ~ q ~ '"' if q else '' }}{{ ' in ' ~ selected_category if selected_category else '' }}</p>
+  </div>
+
+  <!-- CATEGORIES -->
+  <div class="cats">
+    <a class="cat {{ 'cat-on' if not selected_category }}" href="{{ url_for('browse') }}">
+      <span class="cat-ic t-green"><svg class="ic"><use href="#i-grid"></use></svg></span>
+      All categories
+    </a>
+    {% for c in categories %}
+      <a class="cat {{ 'cat-on' if selected_category==c }}" href="{{ url_for('browse', category=c) }}">
+        <span class="cat-ic {{ CAT_TINT[c] }}"><svg class="ic"><use href="#{{ CAT_ICON[c] }}"></use></svg></span>
+        {{ c }}
+        <svg class="ic cat-go"><use href="#i-chevron-r"></use></svg>
+      </a>
+    {% endfor %}
+  </div>
+
+  <!-- SEARCH -->
+  <form class="searchbar" method="get" action="{{ url_for('browse') }}">
+    {% if selected_category %}<input type="hidden" name="category" value="{{ selected_category }}">{% endif %}
+    <div class="search-field">
+      <svg class="ic ic-s"><use href="#i-search"></use></svg>
+      <input class="inp" type="text" name="q" value="{{ q }}" autocomplete="off"
+             placeholder="Search materials…  (press Enter)">
+      <button type="submit" hidden tabindex="-1" aria-hidden="true"></button>
+    </div>
+    {% if q %}<a class="btn btn-ghost" href="{{ url_for('browse', category=selected_category or none) }}">Clear</a>{% endif %}
+  </form>
+
+  {% if products %}
+    <div class="list-title"><span>Results</span><span>{{ products|length }} item{{ 's' if products|length != 1 else '' }}</span></div>
+    <div class="grid">{% for p in products %}{{ card(p) }}{% endfor %}</div>
+  {% else %}
+    <div class="empty">
+      <svg class="empty-art" viewBox="0 0 160 110"><use href="#v-empty"></use></svg>
+      <p>Nothing matches your search.</p>
+      <a class="btn btn-sec btn-sm" href="{{ url_for('browse') }}">Browse everything</a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

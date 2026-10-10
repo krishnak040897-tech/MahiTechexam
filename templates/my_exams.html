@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% block title %}My Exams — MahiTech{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="acct">
+    <div class="page">
+      <a class="backlink" href="{{ url_for('profile') }}">
+        <svg class="ic ic-xs"><use href="#i-chevron-r"></use></svg>Profile
+      </a>
+      <h1>My exams</h1>
+      <p>{{ exams|length }} purchased paper(s) — retakes included</p>
+    </div>
+
+    {% if exams %}
+      <div class="menu">
+        {% for e in exams %}
+          <a class="row-item" href="{{ url_for('exam_start', exam_id=e.id) }}">
+            {% if e.thumbnail %}
+              <span class="row-art"><img src="{{ e.thumbnail|thumb_url }}" alt="{{ e.title }}"></span>
+            {% else %}
+              <span class="mi t-purple"><svg class="ic ic-s"><use href="#i-pen"></use></svg></span>
+            {% endif %}
+            <span class="row-main">
+              <b>{{ e.title }}</b>
+              <small>{{ e.q_count }} question{{ 's' if e.q_count != 1 else '' }} · {{ e.duration_minutes }} min · pass {{ e.pass_percent }}%</small>
+            </span>
+            <span class="row-end">
+              {% if e.best_score is not none %}
+                <b>{{ e.best_score }}/{{ e.best_total or e.q_count }}</b>
+                <span class="badge badge-green">Best</span>
+              {% elif e.has_active %}
+                <span class="badge badge-amber">Resume</span>
+              {% else %}
+                <span class="badge">New</span>
+              {% endif %}
+            </span>
+            <svg class="ic go"><use href="#i-chevron-r"></use></svg>
+          </a>
+        {% endfor %}
+      </div>
+
+      <div style="margin-top:16px">
+        <a class="btn btn-p btn-bl" href="{{ url_for('exams_browse') }}">
+          <svg class="ic ic-s"><use href="#i-plus"></use></svg>Find more exam papers</a>
+      </div>
+    {% else %}
+      <div class="empty">
+        <svg class="empty-art" viewBox="0 0 160 110"><use href="#v-empty"></use></svg>
+        <p>No exam papers yet — browse the paper store to buy your first one.</p>
+        <a class="btn btn-p" href="{{ url_for('exams_browse') }}">Browse exam papers</a>
+      </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

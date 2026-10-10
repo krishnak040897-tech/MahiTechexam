@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% block title %}{{ exam.title }} — Exam — MahiTech{% endblock %}
+{% block content %}
+<style>
+.qprev{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px}
+.qprev .optline{font-size:12.5px;color:var(--text-2);margin-top:3px}
+.qprev .optline b{color:var(--text)}
+.qprev .correct-line{display:inline-flex;align-items:center;gap:5px;margin-top:6px;
+  font-size:12px;font-weight:700;color:var(--success)}
+.admin-chip{display:inline-flex;align-items:center;gap:6px;background:var(--warning-soft);
+            color:#92400E;border:1px solid #F3E3BC;border-radius:999px;padding:4px 12px;
+            font-size:12px;font-weight:600}
+</style>
+<div class="container">
+  <div class="auth" style="max-width:520px">
+    <div class="auth-card">
+      {% if exam.thumbnail %}
+        <img src="{{ exam.thumbnail|thumb_url }}" alt="{{ exam.title }}" decoding="async"
+             style="width:100%;max-height:200px;object-fit:contain;border:1px solid var(--border);
+                    border-radius:12px;background:var(--bg-2);margin-bottom:12px;display:block">
+      {% endif %}
+
+      <div class="form-head" style="text-align:left;margin-bottom:14px">
+        {% if is_admin and not session.get('user_id') %}
+          <span class="admin-chip"><svg class="ic ic-xs"><use href="#i-shield"></use></svg>
+            Admin preview — full access</span>
+        {% else %}
+          <span class="badge badge-green"><svg class="ic ic-xs"><use href="#i-check"></use></svg>Paper purchased</span>
+        {% endif %}
+        <h1 style="margin-top:8px">{{ exam.title }}</h1>
+        {% if exam.description %}<p style="text-align:left">{{ exam.description }}</p>{% endif %}
+      </div>
+
+      <ul class="includes" style="margin:6px 0 14px">
+        <li><svg class="ic"><use href="#i-file"></use></svg>{{ q_count }} multiple-choice question{{ 's' if q_count != 1 else '' }}</li>
+        <li><svg class="ic"><use href="#i-bolt"></use></svg>Time limit: {{ exam.duration_minutes }} minutes (server-timed)</li>
+        <li><svg class="ic"><use href="#i-check-c"></use></svg>Pass mark: {{ exam.pass_percent }}%</li>
+        <li><svg class="ic"><use href="#i-infinity"></use></svg>Retakes allowed — your best score is kept</li>
+      </ul>
+
+      {% if exam.pdf_file %}
+        <div class="file-card" style="margin:6px 0 14px">
+          <span class="file-ic t-green"><svg class="ic"><use href="#i-file"></use></svg></span>
+          <div style="flex:1;min-width:0">
+            <h4>Exam PDF material</h4>
+            <div class="meta">PDF document · Read online or download</div>
+            <div class="file-acts">
+              <a class="btn btn-p btn-sm" href="{{ url_for('serve_exam_pdf', exam_id=exam.id) }}" target="_blank">
+                <svg class="ic ic-xs"><use href="#i-book"></use></svg>Read PDF</a>
+              <a class="btn btn-sec btn-sm" href="{{ url_for('serve_exam_pdf', exam_id=exam.id, download=1) }}">
+                <svg class="ic ic-xs"><use href="#i-download"></use></svg>Download</a>
+            </div>
+          </div>
+        </div>
+      {% endif %}
+
+      {% if attempts %}
+        <div class="list-title">Your previous attempts</div>
+        <div class="menu" style="margin-bottom:14px">
+          {% for a in attempts %}
+            <a class="row-item" href="{{ url_for('exam_result', attempt_id=a.id) }}">
+              <span class="mi {{ 't-green' if (100 * a.score / a.total) >= exam.pass_percent else 't-rose' }}">
+                <svg class="ic ic-s"><use href="#{{ 'i-check' if (100 * a.score / a.total) >= exam.pass_percent else 'i-alert' }}"></use></svg></span>
+              <span class="row-main"><b>{{ a.score }}/{{ a.total }}</b><small>{{ a.submitted_at[:16] if a.submitted_at }}</small></span>
+              <svg class="ic go"><use href="#i-chevron-r"></use></svg>
+            </a>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      {% if q_count %}
+        {% if is_admin and not session.get('user_id') %}
+          <div class="demo-note">
+            <svg class="ic ic-xs"><use href="#i-shield"></use></svg>
+            Admin preview — all {{ q_count }} questions with correct answers are listed below.
+            Use a user account to take the exam.</div>
+        {% else %}
+          <form method="post" action="{{ url_for('exam_begin', exam_id=exam.id) }}">
+            <button class="btn btn-p btn-bl">
+              <svg class="ic ic-s"><use href="#i-bolt"></use></svg>Start exam</button>
+          </form>
+        {% endif %}
+      {% else %}
+        <div class="demo-note">No questions have been added to this exam yet.</div>
+      {% endif %}
+
+      <p class="alt">
+        {% if is_admin %}
+          <a href="{{ url_for('admin_exams') }}">← Admin exams</a> ·
+          <a href="{{ url_for('admin_edit_exam', exam_id=exam.id) }}">Edit this paper</a>
+        {% else %}
+          <a href="{{ url_for('my_exams') }}">← My Exams</a> ·
+          <a href="{{ url_for('exams_browse') }}">Exam papers</a>
+        {% endif %}
+      </p>
+    </div>
+  </div>
+
+  <!-- ============ ADMIN PREVIEW: all questions WITH correct answers ============ -->
+  {% if preview_questions %}
+    <div style="max-width:760px;margin:0 auto 26px">
+      <div class="list-title">
+        <span>Admin preview — questions &amp; answers ({{ preview_questions|length }})</span>
+        <a href="{{ url_for('admin_edit_exam', exam_id=exam.id) }}">Add / edit questions</a>
+      </div>
+      {% for q in preview_questions %}
+        <div class="qprev">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <span style="width:24px;height:24px;border-radius:7px;background:var(--primary-soft);
+                         color:var(--primary);font-size:12px;font-weight:800;display:grid;
+                         place-items:center;flex:none">{{ loop.index }}</span>
+            <b style="font-size:13.5px;flex:1">{{ q.question }}</b>
+          </div>
+          <div class="optline"><b>A.</b> {{ q.opt_a }} · <b>B.</b> {{ q.opt_b }} ·
+            <b>C.</b> {{ q.opt_c }} · <b>D.</b> {{ q.opt_d }}</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span class="correct-line"><svg class="ic ic-xs"><use href="#i-check"></use></svg>
+              Correct: {{ q.correct|upper }}</span>
+            <a class="btn btn-sec btn-sm" style="margin-left:auto"
+               href="{{ url_for('admin_edit_exam', exam_id=exam.id, qid=q.id) }}#qform">Edit</a>
+            <form method="post" action="{{ url_for('admin_delete_question', qid=q.id) }}"
+                  data-confirm="Delete this question?">
+              <button class="btn btn-danger btn-sm">Delete</button>
+            </form>
+          </div>
+        </div>
+      {% else %}
+        <div class="empty">
+          <p>No questions in this paper yet — add the first MCQ in the editor.</p>
+          <a class="btn btn-p btn-sm" href="{{ url_for('admin_edit_exam', exam_id=exam.id) }}">
+            Add questions</a>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+
+</div>
+{% endblock %}

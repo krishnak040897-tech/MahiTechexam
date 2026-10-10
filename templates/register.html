@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% block title %}Register — MahiTech{% endblock %}
+{% block content %}
+<div class="auth">
+  <svg class="auth-art" viewBox="0 0 200 120" aria-hidden="true"><use href="#v-auth"></use></svg>
+  <div class="form-head">
+    <h1>Create account</h1>
+    <p>Join MahiTech and start preparing today</p>
+  </div>
+  <form method="post">
+    <div class="f"><label>Username</label>
+      <input class="inp" type="text" name="username" required autofocus autocomplete="username" placeholder="Choose a username"></div>
+    <div class="f"><label>Email</label>
+      <input class="inp" type="email" name="email" required autocomplete="email" placeholder="you@example.com"></div>
+    <div class="f"><label>Password</label>
+      <input class="inp" type="password" name="password" required autocomplete="new-password" placeholder="Minimum 6 characters"></div>
+    <div class="f"><label>Confirm Password</label>
+      <input class="inp" type="password" name="confirm_password" required autocomplete="new-password" placeholder="Re-enter your password"></div>
+    <button class="btn btn-p btn-bl">Create account</button>
+  </form>
+  <p class="alt">Already have an account? <a href="{{ url_for('login') }}">Log in</a></p>
+</div>
+{% endblock %}

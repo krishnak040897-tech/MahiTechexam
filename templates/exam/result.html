@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}Result — {{ exam.title }} — MahiTech{% endblock %}
+{% block content %}
+<style>
+.score-card{background:#fff;border:1px solid var(--border);border-radius:18px;
+            padding:26px;text-align:center;margin:22px auto 14px;max-width:520px}
+.score-pct{font-size:46px;font-weight:800;letter-spacing:-.03em;line-height:1}
+.score-sub{font-size:13px;color:var(--text-2);margin-top:6px}
+.rcard{background:#fff;border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:10px}
+.ropt{font-size:13px;padding:6px 10px;border-radius:9px;margin-top:5px;
+      border:1px solid var(--border);display:flex;gap:8px;align-items:center}
+.ropt .lg{font-weight:800;width:18px;flex:none;text-align:center}
+.ropt.correct{border-color:#CBEAD5;background:var(--success-soft)}
+.ropt.wrong{border-color:#F3D7D7;background:var(--error-soft)}
+</style>
+
+<div class="container">
+  <div class="score-card">
+    <div class="score-pct" style="color:{{ 'var(--success)' if passed else 'var(--error)' }}">{{ percent }}%</div>
+    <div class="score-sub">{{ attempt.score }} out of {{ attempt.total }} · {{ exam.title }}</div>
+    <div style="margin-top:12px">
+      {% if passed %}
+        <span class="badge badge-green"><svg class="ic ic-xs"><use href="#i-check"></use></svg>Passed ({{ exam.pass_percent }}% to pass)</span>
+      {% else %}
+        <span class="badge badge-red"><svg class="ic ic-xs"><use href="#i-alert"></use></svg>Not passed ({{ exam.pass_percent }}% to pass)</span>
+      {% endif %}
+    </div>
+    <div class="form-acts" style="justify-content:center;margin-top:16px">
+      <form method="post" action="{{ url_for('exam_begin', exam_id=exam.id) }}" style="flex:1;max-width:180px">
+        <button class="btn btn-p btn-bl"><svg class="ic ic-s"><use href="#i-bolt"></use></svg>Retake</button>
+      </form>
+      <a class="btn btn-sec" style="flex:1;max-width:160px" href="{{ url_for('my_exams') }}">My exams</a>
+    </div>
+    <p class="small muted" style="margin-top:10px">Submitted {{ attempt.submitted_at[:16] if attempt.submitted_at }}</p>
+  </div>
+
+  <div class="list-title" style="max-width:760px;margin-left:auto;margin-right:auto"><span>Answer review</span></div>
+  <div style="max-width:760px;margin:0 auto">
+    {% for r in review %}
+      <div class="rcard">
+        <b style="font-size:13.5px">{{ loop.index }}. {{ r.question }}</b>
+        {% for key in ['a','b','c','d'] %}
+          <div class="ropt {{ 'correct' if key == r.correct else ('wrong' if key == r.your else '') }}">
+            <span class="lg">{{ key|upper }}</span>
+            <span>{{ r.opts[key] }}</span>
+            {% if key == r.correct %}<span class="badge badge-green" style="margin-left:auto">Correct</span>
+            {% elif key == r.your %}<span class="badge badge-red" style="margin-left:auto">Your answer</span>{% endif %}
+          </div>
+        {% endfor %}
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}

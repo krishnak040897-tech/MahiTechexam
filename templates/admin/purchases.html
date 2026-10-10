@@ -1,0 +1,108 @@
+{% extends 'base.html' %}
+{% block title %}Purchase records — Admin — MahiTech{% endblock %}
+{% block content %}
+<div class="container">
+
+  <!-- header with back-to-profile link (NO tab bar — directory lives in Admin profile) -->
+  <div class="page">
+    <a href="{{ url_for('admin_profile') }}"
+       style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;color:var(--text-3);margin-bottom:4px">
+      <svg class="ic ic-xs" style="transform:rotate(180deg)"><use href="#i-chevron-r"></use></svg>Admin profile
+    </a>
+    <h1>Purchase records</h1>
+    <p>{{ purchases|length }} purchase record(s) — complete payment history</p>
+  </div>
+
+  {% if purchases %}
+    <!-- summary cards -->
+    <div class="stats" style="margin-bottom:16px">
+      <div class="stat">
+        <span class="stat-ic t-purple"><svg class="ic"><use href="#i-bag"></use></svg></span>
+        <div><b>{{ purchases|length }}</b><span>Total records</span></div>
+      </div>
+      <div class="stat">
+        <span class="stat-ic t-amber"><svg class="ic"><use href="#i-card"></use></svg></span>
+        <div><b>₹{{ total_revenue|inr }}</b><span>Total revenue</span></div>
+      </div>
+    </div>
+
+    <!-- desktop: table -->
+    <div class="tbl-wrap only-desktop">
+      <table class="rt">
+        <thead><tr><th>ID</th><th>User</th><th>Product</th><th>Amount</th><th>Status</th><th>Payment ID</th><th>Date</th><th></th></tr></thead>
+        <tbody>
+          {% for p in purchases %}
+            <tr>
+              <td class="muted">#{{ p.id }}</td>
+              <td><div><strong>{{ p.username or '—' }}</strong>
+                {% if p.email %}<div class="muted small" style="word-break:break-all">{{ p.email }}</div>{% endif %}</div></td>
+              <td>{{ p.product_title }}</td>
+              <td><strong>₹{{ p.amount|inr }}</strong></td>
+              <td>
+                {% if p.status == 'paid' %}<span class="badge badge-green">Paid</span>
+                {% elif p.status == 'pending' %}<span class="badge badge-amber">Pending</span>
+                {% else %}<span class="badge badge-red">{{ p.status }}</span>{% endif %}
+              </td>
+              <td class="muted small" style="word-break:break-all">{{ p.payment_id or '—' }}</td>
+              <td class="muted small">{{ p.created_at[:16] }}</td>
+              <td>
+                <form method="post" action="{{ url_for('admin_delete_purchase', purchase_id=p.id) }}"
+                      data-confirm="Remove purchase record #{{ p.id }}? The user will lose access.">
+                  <button class="btn btn-danger btn-sm">Delete</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- mobile: one-by-one rows with arrow (tap to expand details + actions) -->
+    <div class="only-mobile">
+      <div class="alist">
+        {% for p in purchases %}
+          <details class="drow">
+            <summary class="drow-sum">
+              <span class="lrow-ic t-purple">{{ (p.username or '?')[:1]|upper }}</span>
+              <span class="lrow-main">
+                <b>{{ p.product_title }}</b>
+                <small>{{ p.username or 'Unknown user' }} · {{ p.created_at[:16] }}</small>
+              </span>
+              <span class="lrow-end">
+                <span class="amt">₹{{ p.amount|inr }}</span>
+                {% if p.status == 'paid' %}<span class="badge badge-green">Paid</span>
+                {% elif p.status == 'pending' %}<span class="badge badge-amber">Pending</span>
+                {% else %}<span class="badge badge-red">{{ p.status }}</span>{% endif %}
+              </span>
+              <svg class="ic chev"><use href="#i-chevron-r"></use></svg>
+            </summary>
+            <div class="drow-body">
+              <div class="drow-meta">
+                <div><span>Record</span><b>#{{ p.id }}</b></div>
+                <div><span>Date</span><b>{{ p.created_at[:16] }}</b></div>
+                <div style="grid-column:1/-1"><span>Buyer</span><b>{{ p.username or '—' }}{% if p.email %} · {{ p.email }}{% endif %}</b></div>
+                {% if p.payment_id %}<div style="grid-column:1/-1"><span>Payment ID</span><b>{{ p.payment_id }}</b></div>{% endif %}
+              </div>
+              <div class="drow-acts">
+                {% if p.product_id %}
+                  <a class="btn btn-sec" href="{{ url_for('product', product_id=p.product_id) }}">
+                    <svg class="ic ic-xs"><use href="#i-eye"></use></svg>View product</a>
+                {% endif %}
+                <form method="post" action="{{ url_for('admin_delete_purchase', purchase_id=p.id) }}"
+                      data-confirm="Remove purchase record #{{ p.id }}? The user will lose access.">
+                  <button class="btn btn-danger"><svg class="ic ic-xs"><use href="#i-trash"></use></svg>Delete</button>
+                </form>
+              </div>
+            </div>
+          </details>
+        {% endfor %}
+      </div>
+    </div>
+  {% else %}
+    <div class="empty">
+      <svg class="empty-art" viewBox="0 0 160 110"><use href="#v-empty"></use></svg>
+      <p>No purchase records yet.</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

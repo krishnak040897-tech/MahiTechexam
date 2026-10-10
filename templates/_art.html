@@ -1,0 +1,41 @@
+{# Shared macros: thumbnail / vector art + product card #}
+{# media(p)          -> plain thumbnail / vector art #}
+{# media(p, zoom=True) -> adds click-to-view-full-size (lightbox) on images #}
+
+{% macro media(p, zoom=False) -%}
+  {%- if p.thumbnail -%}
+    <img class="pm-img{% if zoom %} zoomable{% endif %}"
+         src="{{ p.thumbnail|thumb_url }}"
+         alt="{{ p.title }}" decoding="async"
+         {% if zoom %}data-full="{{ p.thumbnail|thumb_url }}"{% endif %}
+         onerror="this.style.display='none';if(this.parentElement)this.parentElement.classList.add('pm-broken')">
+  {%- else -%}
+    {%- set tint = {'Government Exams':'v-blue','Competitive Exams':'v-amber',
+                    'Entrance Exams':'v-purple','Academic Preparation':'v-green',
+                    'Career Preparation':'v-rose'}.get(p.category, 'v-green') -%}
+    {%- set sym = 'v-video' if p.content_type == 'video' else ('v-both' if p.content_type == 'both' else 'v-doc') -%}
+    <div class="art {{ tint }}">
+      <svg class="art-svg" viewBox="0 0 160 110" aria-hidden="true"><use href="#{{ sym }}"></use></svg>
+    </div>
+  {%- endif -%}
+{%- endmacro %}
+
+{% macro card(p) %}
+<article class="card">
+  <a class="thumb" href="{{ url_for('product', product_id=p.id) }}">{{ media(p) }}</a>
+  <div class="card-body">
+    <div class="badge-row">
+      <span class="badge">{{ p.category }}</span>
+      {% if p.content_type=='video' %}<span class="badge badge-green"><svg class="ic ic-xs"><use href="#i-play"></use></svg>Video</span>
+      {% elif p.content_type=='both' %}<span class="badge badge-green">PDF+Video</span>
+      {% else %}<span class="badge badge-green"><svg class="ic ic-xs"><use href="#i-file"></use></svg>PDF</span>{% endif %}
+    </div>
+    <h3 class="card-title"><a href="{{ url_for('product', product_id=p.id) }}">{{ p.title }}</a></h3>
+    {% if p.description %}<p class="card-desc">{{ p.description[:90] }}</p>{% endif %}
+    <div class="card-foot">
+      <span class="price">₹{{ p.price|inr }}</span>
+      <a class="btn btn-sec btn-sm" href="{{ url_for('product', product_id=p.id) }}">View</a>
+    </div>
+  </div>
+</article>
+{% endmacro %}

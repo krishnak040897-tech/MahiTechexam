@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+{% block title %}Admin profile — MahiTech{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="acct acct-wide">
+
+    <!-- profile header -->
+    <div class="profile">
+      <span class="avatar"><svg class="ic" style="width:26px;height:26px"><use href="#i-shield"></use></svg></span>
+      <div>
+        <h1>Admin Mahesh</h1>
+        <p>MahiTech control center · full store access</p>
+      </div>
+    </div>
+
+    <!-- stats (tap a card to jump) -->
+    <div class="stats">
+      <a class="stat" href="{{ url_for('admin_products') }}">
+        <span class="stat-ic t-green"><svg class="ic"><use href="#i-package"></use></svg></span>
+        <div><b>{{ products }}</b><span>Products</span></div>
+      </a>
+      <a class="stat" href="{{ url_for('admin_users') }}">
+        <span class="stat-ic t-blue"><svg class="ic"><use href="#i-users"></use></svg></span>
+        <div><b>{{ users }}</b><span>Users</span></div>
+      </a>
+      <a class="stat" href="{{ url_for('admin_purchases') }}">
+        <span class="stat-ic t-purple"><svg class="ic"><use href="#i-bag"></use></svg></span>
+        <div><b>{{ purchases }}</b><span>Purchases</span></div>
+      </a>
+      <a class="stat" href="{{ url_for('admin_exams') }}">
+        <span class="stat-ic t-rose"><svg class="ic"><use href="#i-pen"></use></svg></span>
+        <div><b>{{ exams }}</b><span>Exams</span></div>
+      </a>
+      <div class="stat">
+        <span class="stat-ic t-amber"><svg class="ic"><use href="#i-card"></use></svg></span>
+        <div><b>₹{{ revenue|inr }}</b><span>Revenue</span></div>
+      </div>
+    </div>
+
+    <!-- directory (the ONLY place with these links) -->
+    <div class="list-title">Manage store</div>
+    <div class="menu">
+      <a href="{{ url_for('admin_products') }}">
+        <span class="mi t-green"><svg class="ic ic-s"><use href="#i-package"></use></svg></span>
+        <span class="lbl">Products</span>
+        <span class="menu-val">{{ products }} item{{ 's' if products != 1 else '' }}</span>
+        <svg class="ic go"><use href="#i-chevron-r"></use></svg>
+      </a>
+      <a href="{{ url_for('admin_users') }}">
+        <span class="mi t-blue"><svg class="ic ic-s"><use href="#i-users"></use></svg></span>
+        <span class="lbl">Users</span>
+        <span class="menu-val">{{ users }} registered</span>
+        <svg class="ic go"><use href="#i-chevron-r"></use></svg>
+      </a>
+      <a href="{{ url_for('admin_purchases') }}">
+        <span class="mi t-purple"><svg class="ic ic-s"><use href="#i-bag"></use></svg></span>
+        <span class="lbl">Purchase records</span>
+        <span class="menu-val">{{ purchases }} record{{ 's' if purchases != 1 else '' }}</span>
+        <svg class="ic go"><use href="#i-chevron-r"></use></svg>
+      </a>
+      <a href="{{ url_for('admin_exams') }}">
+        <span class="mi t-rose"><svg class="ic ic-s"><use href="#i-pen"></use></svg></span>
+        <span class="lbl">Exams &amp; MCQs</span>
+        <span class="menu-val">{{ exams }} exam{{ 's' if exams != 1 else '' }}</span>
+        <svg class="ic go"><use href="#i-chevron-r"></use></svg>
+      </a>
+      <a href="{{ url_for('admin_media_debug') }}">
+        <span class="mi t-rose"><svg class="ic ic-s"><use href="#i-image"></use></svg></span>
+        <span class="lbl">Media / Cloudinary debug</span>
+        <span class="menu-val">check images</span>
+        <svg class="ic go"><use href="#i-chevron-r"></use></svg>
+      </a>
+      <a href="{{ url_for('admin_add_product') }}">
+        <span class="mi t-amber"><svg class="ic ic-s"><use href="#i-plus"></use></svg></span>
+        <span class="lbl">Add new product</span>
+        <svg class="ic go"><use href="#i-chevron-r"></use></svg>
+      </a>
+      <a href="{{ url_for('browse') }}">
+        <span class="mi t-green"><svg class="ic ic-s"><use href="#i-grid"></use></svg></span>
+        <span class="lbl">View store front</span>
+        <svg class="ic go"><use href="#i-chevron-r"></use></svg>
+      </a>
+    </div>
+
+    <!-- recent purchases -->
+    <div class="list-title">
+      <span>Recent purchases</span>
+      {% if recent %}<a href="{{ url_for('admin_purchases') }}">View all</a>{% endif %}
+    </div>
+
+    {% if recent %}
+      <div class="menu">
+        {% for p in recent %}
+          <a class="row-item" href="{{ url_for('admin_purchases') }}">
+            <span class="mi {{ loop.cycle('t-blue','t-amber','t-purple','t-green','t-rose') }}"><span class="mi-letter">{{ (p.username or '?')[:1]|upper }}</span></span>
+            <span class="row-main">
+              <b>{{ p.product_title }}</b>
+              <small>{{ p.username or 'Unknown user' }} · {{ p.created_at[:16] }}</small>
+            </span>
+            <span class="row-end">
+              <b>₹{{ p.amount|inr }}</b>
+              <span class="badge badge-green">Paid</span>
+            </span>
+            <svg class="ic go"><use href="#i-chevron-r"></use></svg>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty">
+        <svg class="empty-art" viewBox="0 0 160 110"><use href="#v-empty"></use></svg>
+        <p>No purchases yet.</p>
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

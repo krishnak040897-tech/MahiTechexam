@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}{{ exam.title }} — Taking — MahiTech{% endblock %}
+{% block content %}
+<style>
+.exambar{position:sticky;top:72px;z-index:120;background:#fff;border:1px solid var(--border);
+         border-radius:14px;padding:10px 14px;display:flex;align-items:center;gap:10px;margin:14px 0}
+.exambar b{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.exam-meta{font-size:12px;color:var(--text-3);white-space:nowrap}
+.timer{margin-left:auto;font-weight:800;font-variant-numeric:tabular-nums;font-size:15px}
+.timer.warn{color:var(--error)}
+.qcard{background:#fff;border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px}
+.qhead{display:flex;gap:10px;align-items:flex-start}
+.qnum{width:26px;height:26px;border-radius:8px;background:var(--primary-soft);color:var(--primary);
+      font-size:12.5px;font-weight:800;display:grid;place-items:center;flex:none}
+.qtext{font-size:14px;font-weight:600;line-height:1.45}
+.opts{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.opt{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--border);
+     border-radius:11px;cursor:pointer;transition:.15s;font-size:13.5px}
+.opt:hover{border-color:var(--primary);background:var(--primary-softer)}
+.opt input{margin-top:3px;accent-color:var(--primary);flex:none}
+.opt.sel{border-color:var(--primary);background:var(--primary-soft)}
+@media(max-width:860px){.exambar{top:66px}}
+</style>
+
+<div class="container">
+<form method="post" id="examForm" action="{{ url_for('exam_submit', attempt_id=attempt.id) }}">
+  <div class="exambar">
+    <b>{{ exam.title }}</b>
+    <span class="exam-meta" id="answered">0/{{ questions|length }} answered</span>
+    <span class="timer" id="timer" data-remaining="{{ remaining }}">{{ '%d:%02d'|format(remaining//60, remaining%60) }}</span>
+  </div>
+
+  {% for q in questions %}
+    <div class="qcard">
+      <div class="qhead">
+        <span class="qnum">{{ loop.index }}</span>
+        <div class="qtext">{{ q.question }}</div>
+      </div>
+      <div class="opts">
+        {% for key, text in [('a', q.opt_a), ('b', q.opt_b), ('c', q.opt_c), ('d', q.opt_d)] %}
+          <label class="opt">
+            <input type="radio" name="q_{{ q.id }}" value="{{ key }}" data-opt>
+            <span>{{ text }}</span>
+          </label>
+        {% endfor %}
+      </div>
+    </div>
+  {% endfor %}
+
+  <button class="btn btn-p btn-bl" id="submitBtn" style="margin:6px 0 20px">
+    <svg class="ic ic-s"><use href="#i-check"></use></svg>Submit exam</button>
+</form>
+</div>
+
+<script>
+(function () {
+  var form = document.getElementById("examForm");
+  var timerEl = document.getElementById("timer");
+  var answeredEl = document.getElementById("answered");
+  var radios = Array.prototype.slice.call(document.querySelectorAll("[data-opt]"));
+  var total = {{ questions|length }};
+
+  function refresh() {
+    var n = radios.filter(function (r) { return r.checked; }).length;
+    if (answeredEl) answeredEl.textContent = n + "/" + total + " answered";
+    radios.forEach(function (r) {
+      r.closest(".opt").classList.toggle("sel", r.checked);
+    });
+  }
+  radios.forEach(function (r) { r.addEventListener("change", refresh); });
+  refresh();
+
+  var remaining = parseInt(timerEl.getAttribute("data-remaining"), 10) || 0;
+  var submitted = false;
+  function tick() {
+    if (submitted) return;
+    remaining -= 1;
+    if (remaining <= 0) {
+      timerEl.textContent = "0:00";
+      submitted = true;
+      form.submit();
+      return;
+    }
+    timerEl.textContent = Math.floor(remaining / 60) + ":" +
+                          ("0" + (remaining % 60)).slice(-2);
+    if (remaining <= 60) timerEl.classList.add("warn");
+  }
+  tick(); setInterval(tick, 1000);
+})();
+</script>
+{% endblock %}

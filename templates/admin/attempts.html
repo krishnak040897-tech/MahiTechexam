@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% block title %}Attempts &amp; results — Admin — MahiTech{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="page row">
+    <div>
+      <a class="backlink" href="{{ url_for('admin_exams') }}">
+        <svg class="ic ic-xs"><use href="#i-chevron-r"></use></svg>Exam papers
+      </a>
+      <h1>Attempts &amp; results</h1>
+      <p>{{ attempts|length }} attempt(s) — graded server-side, stored in SQLite</p>
+    </div>
+    <form method="post" action="{{ url_for('admin_sync_exams') }}"
+          data-confirm="Sync ALL exam data (papers, questions, attempts, results) to Cloudinary?">
+      <button class="btn btn-sec">
+        <svg class="ic ic-s"><use href="#i-download"></use></svg>Sync to Cloudinary</button>
+    </form>
+  </div>
+
+  {% if attempts %}
+    <div class="tbl-wrap only-desktop">
+      <table class="rt">
+        <thead><tr><th>#</th><th>User</th><th>Exam</th><th>Score</th><th>%</th><th>Result</th><th>Status</th><th>Date</th></tr></thead>
+        <tbody>
+          {% for a in attempts %}
+            {% set total = a.total or 0 %}
+            {% set pct = ((100 * a.score / total)|round(0)|int) if total else 0 %}
+            {% set passed = a.status == 'submitted' and total > 0 and pct >= (a.pass_percent or 0) %}
+            <tr>
+              <td class="muted">#{{ a.id }}</td>
+              <td><strong>{{ a.username or '—' }}</strong>
+                {% if a.email %}<div class="muted small">{{ a.email }}</div>{% endif %}</td>
+              <td>{{ a.exam_title or '—' }}</td>
+              <td><strong>{{ a.score }}/{{ total }}</strong></td>
+              <td>{{ pct }}%</td>
+              <td>
+                {% if a.status != 'submitted' %}<span class="badge badge-amber">In progress</span>
+                {% elif passed %}<span class="badge badge-green">Passed</span>
+                {% else %}<span class="badge badge-red">Not passed</span>{% endif %}
+              </td>
+              <td class="muted small">{{ a.status }}</td>
+              <td class="muted small">{{ (a.submitted_at or a.started_at)[:16] }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="only-mobile">
+      <div class="alist">
+        {% for a in attempts %}
+          {% set total = a.total or 0 %}
+          {% set pct = ((100 * a.score / total)|round(0)|int) if total else 0 %}
+          {% set passed = a.status == 'submitted' and total > 0 and pct >= (a.pass_percent or 0) %}
+          <details class="drow">
+            <summary class="drow-sum">
+              <span class="lrow-ic {{ 't-green' if passed else ('t-amber' if a.status != 'submitted' else 't-rose') }}">
+                <svg class="ic"><use href="#i-award"></use></svg></span>
+              <span class="lrow-main">
+                <b>{{ a.username or 'Unknown user' }} · {{ a.exam_title or 'Exam' }}</b>
+                <small>{{ a.score }}/{{ total }} · {{ pct }}% · {{ (a.submitted_at or a.started_at)[:16] }}</small>
+              </span>
+              <span class="lrow-end">
+                <span class="amt">{{ pct }}%</span>
+                {% if a.status != 'submitted' %}<span class="badge badge-amber">In progress</span>
+                {% elif passed %}<span class="badge badge-green">Passed</span>
+                {% else %}<span class="badge badge-red">Failed</span>{% endif %}
+              </span>
+              <svg class="ic chev"><use href="#i-chevron-r"></use></svg>
+            </summary>
+            <div class="drow-body">
+              <div class="drow-meta">
+                <div><span>Attempt</span><b>#{{ a.id }}</b></div>
+                <div><span>Score</span><b>{{ a.score }}/{{ total }}</b></div>
+                <div><span>Pass mark</span><b>{{ a.pass_percent or 0 }}%</b></div>
+                <div><span>Status</span><b>{{ a.status }}</b></div>
+                {% if a.email %}<div style="grid-column:1/-1"><span>User</span><b>{{ a.email }}</b></div>{% endif %}
+                <div style="grid-column:1/-1"><span>Started</span><b>{{ a.started_at[:16] if a.started_at }}</b></div>
+                {% if a.submitted_at %}<div style="grid-column:1/-1"><span>Submitted</span><b>{{ a.submitted_at[:16] }}</b></div>{% endif %}
+              </div>
+            </div>
+          </details>
+        {% endfor %}
+      </div>
+    </div>
+  {% else %}
+    <div class="empty">
+      <svg class="empty-art" viewBox="0 0 160 110"><use href="#v-empty"></use></svg>
+      <p>No exam attempts yet — attempts appear here as soon as users take exams.</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

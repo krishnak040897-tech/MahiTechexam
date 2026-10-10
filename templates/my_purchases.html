@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+{% from '_art.html' import media %}
+{% block title %}My Purchases — MahiTech{% endblock %}
+
+{% block content %}
+<div class="container">
+  <div class="acct">
+
+    <!-- header -->
+    <div class="page">
+      <a class="backlink" href="{{ url_for('profile') }}">
+        <svg class="ic ic-xs"><use href="#i-chevron-r"></use></svg>Profile
+      </a>
+      <h1>My library</h1>
+      <p>{{ purchases|length }} item(s) — lifetime access, always available</p>
+    </div>
+
+    <!-- stats -->
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-ic t-green"><svg class="ic"><use href="#i-bag"></use></svg></span>
+        <div><b>{{ purchases|length }}</b><span>Materials owned</span></div>
+      </div>
+      <div class="stat">
+        <span class="stat-ic t-blue"><svg class="ic"><use href="#i-card"></use></svg></span>
+        <div><b>₹{{ purchases|sum(attribute='amount')|inr }}</b><span>Total invested</span></div>
+      </div>
+    </div>
+
+    {% if purchases %}
+      <div class="list-title"><span>Your materials</span></div>
+      <div class="menu">
+        {% for p in purchases %}
+          <a class="row-item" href="{{ url_for('product', product_id=p.product_id) if p.product_id else '#' }}">
+            <span class="row-art">{{ media(p) }}</span>
+            <span class="row-main">
+              <b>{{ p.product_title }}</b>
+              <small>Purchased {{ p.created_at[:10] }}{% if p.category %} · {{ p.category }}{% endif %}</small>
+            </span>
+            <span class="row-end">
+              <b>₹{{ p.amount|inr }}</b>
+              {% if p.product_id %}
+                <span class="badge badge-green"><svg class="ic ic-xs"><use href="#i-check"></use></svg>Owned</span>
+              {% else %}
+                <span class="badge badge-amber">Unavailable</span>
+              {% endif %}
+            </span>
+            <svg class="ic go"><use href="#i-chevron-r"></use></svg>
+          </a>
+        {% endfor %}
+      </div>
+
+      <div style="margin-top:18px">
+        <a class="btn btn-p btn-bl" href="{{ url_for('browse') }}">
+          <svg class="ic ic-s"><use href="#i-search"></use></svg>Find more materials</a>
+      </div>
+    {% else %}
+      <div class="empty">
+        <svg class="empty-art" viewBox="0 0 160 110"><use href="#v-empty"></use></svg>
+        <p>Your library is empty — purchase your first study material today.</p>
+        <a class="btn btn-p" href="{{ url_for('browse') }}">Browse materials</a>
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

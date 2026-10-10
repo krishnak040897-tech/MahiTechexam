@@ -1,0 +1,198 @@
+{% extends 'base.html' %}
+{% block title %}Exams — Admin — MahiTech{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="page row">
+    <div>
+      <a class="backlink" href="{{ url_for('admin_profile') }}">
+        <svg class="ic ic-xs"><use href="#i-chevron-r"></use></svg>Admin profile
+      </a>
+      <h1>Exam papers</h1>
+      <p>{{ exams|length }} paper(s) — standalone, users buy each paper to take it</p>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <form method="post" action="{{ url_for('admin_sync_exams') }}"
+            data-confirm="Sync ALL exam data (papers, questions, attempts, results) to Cloudinary?">
+        <button class="btn btn-sec">
+          <svg class="ic ic-s"><use href="#i-download"></use></svg>Sync data to Cloudinary</button>
+      </form>
+      <a class="btn btn-sec" href="{{ url_for('admin_attempts') }}">
+        <svg class="ic ic-s"><use href="#i-award"></use></svg>Results</a>
+      <a class="btn btn-p" href="{{ url_for('admin_add_exam') }}">
+        <svg class="ic ic-s"><use href="#i-plus"></use></svg>Create exam</a>
+    </div>
+  </div>
+
+  {% if exams %}
+    <div class="tbl-wrap only-desktop">
+      <table class="rt">
+        <thead><tr><th>Title</th><th>Price</th><th>Questions</th><th>Time</th><th>Pass</th><th>Files</th><th style="width:118px">Actions</th></tr></thead>
+        <tbody>
+          {% for e in exams %}
+            <tr>
+              <td><strong>{{ e.title }}</strong></td>
+              <td><strong>{{ 'Free' if e.price == 0 else '₹' ~ (e.price|inr) }}</strong></td>
+              <td><span class="badge">{{ e.q_count }}</span></td>
+              <td>{{ e.duration_minutes }} min</td>
+              <td>{{ e.pass_percent }}%</td>
+              <td>
+                <span style="display:inline-flex;gap:7px;color:var(--text-3)">
+                  {% if e.thumbnail %}<svg class="ic ic-s"><use href="#i-image"></use></svg>{% endif %}
+                  {% if e.pdf_file %}<svg class="ic ic-s"><use href="#i-file"></use></svg>{% endif %}
+                  {% if not e.thumbnail and not e.pdf_file %}<span class="small muted">—</span>{% endif %}
+                </span>
+              </td>
+              <td>
+                <div style="display:inline-flex;gap:5px">
+                  <a class="btn btn-sec btn-ic" href="{{ url_for('admin_edit_exam', exam_id=e.id) }}" title="Edit & questions">
+                    <svg class="ic ic-s"><use href="#i-edit"></use></svg></a>
+                  <a class="btn btn-ghost btn-ic" href="{{ url_for('exam_start', exam_id=e.id) }}" title="Preview">
+                    <svg class="ic ic-s"><use href="#i-eye"></use></svg></a>
+                  <form method="post" action="{{ url_for('admin_delete_exam', exam_id=e.id) }}"
+                        data-confirm='Delete "{{ e.title }}"? Its questions, attempts and files will also be removed.'>
+                    <button class="btn btn-danger btn-ic" title="Delete">
+                      <svg class="ic ic-s"><use href="#i-trash"></use></svg></button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="only-mobile">
+      <div class="alist">
+        {% for e in exams %}
+          <details class="drow">
+            <summary class="drow-sum">
+              {% if e.thumbnail %}
+                <span class="lrow-art"><img src="{{ e.thumbnail|thumb_url }}" alt="{{ e.title }}"></span>
+              {% else %}
+                <span class="lrow-ic t-purple"><svg class="ic"><use href="#i-pen"></use></svg></span>
+              {% endif %}
+              <span class="lrow-main">
+                <b>{{ e.title }}</b>
+                <small>{{ e.q_count }} Q{{ 's' if e.q_count != 1 else '' }} · {{ e.duration_minutes }} min · pass {{ e.pass_percent }}%</small>
+              </span>
+              <span class="lrow-end">
+                <span class="amt">{{ 'Free' if e.price == 0 else '₹' ~ (e.price|inr) }}</span>
+                <span class="badge">Paper</span>
+              </span>
+              <svg class="ic chev"><use href="#i-chevron-r"></use></svg>
+            </summary>
+            <div class="drow-body">
+              <div class="drow-acts">
+                <a class="btn btn-p" href="{{ url_for('admin_edit_exam', exam_id=e.id) }}">
+                  <svg class="ic ic-xs"><use href="#i-edit"></use></svg>Edit &amp; questions</a>
+                <a class="btn btn-sec" href="{{ url_for('exam_start', exam_id=e.id) }}">
+                  <svg class="ic ic-xs"><use href="#i-eye"></use></svg>Preview</a>
+                <form method="post" action="{{ url_for('admin_delete_exam', exam_id=e.id) }}"
+                      data-confirm='Delete "{{ e.title }}"? Its questions, attempts and files will also be removed.'>
+                  <button class="btn btn-danger"><svg class="ic ic-xs"><use href="#i-trash"></use></svg>Delete</button>
+                </form>
+              </div>
+            </div>
+          </details>
+        {% endfor %}
+      </div>
+    </div>
+  {% else %}
+    <div class="empty">
+      <svg class="empty-art" viewBox="0 0 160 110"><use href="#v-empty"></use></svg>
+      <p>No exam papers yet — create your first paper.</p>
+      <a class="btn btn-p btn-sm" href="{{ url_for('admin_add_exam') }}">Create exam</a>
+    </div>
+  {% endif %}
+
+  <!-- ============ CLOUDINARY EXAM DATA & BACKUPS ============ -->
+  <div class="page" style="padding-top:26px">
+    <h1 style="font-size:19px">Cloudinary exam data</h1>
+    <p>"Sync data to Cloudinary" uploads the exam TEXT as readable JSON to
+       <b>mahitech/exam-data</b>: papers + every question with its correct
+       answer, and all users' attempts + results. SQLite stays the live
+       source — these are readable copies you can open/download any time.</p>
+  </div>
+
+  {% if backups %}
+    <div class="tbl-wrap only-desktop">
+      <table class="rt">
+        <thead><tr><th>File</th><th>Type</th><th>Records</th><th>Stored</th><th>Date</th><th style="width:150px">Actions</th></tr></thead>
+        <tbody>
+          {% for b in backups %}
+            <tr>
+              <td class="muted small" style="word-break:break-all">{{ b.filename }}</td>
+              <td>
+                {% if b.kind == 'papers' %}<span class="badge"><svg class="ic ic-xs"><use href="#i-pen"></use></svg>Papers + questions</span>
+                {% elif b.kind == 'results' %}<span class="badge"><svg class="ic ic-xs"><use href="#i-award"></use></svg>Attempts + results</span>
+                {% else %}<span class="badge">Full backup</span>{% endif %}
+              </td>
+              <td class="muted small">
+                {% if b.kind == 'results' %}{{ b.question_count }} attempt(s)
+                {% else %}{{ b.exam_count }} paper(s) · {{ b.question_count }} Q(s){% endif %}
+              </td>
+              <td>
+                {% if b.status == 'cloud' %}<span class="badge badge-green"><svg class="ic ic-xs"><use href="#i-check"></use></svg>Cloudinary</span>
+                {% else %}<span class="badge badge-amber">Server (local)</span>{% endif %}
+              </td>
+              <td class="muted small">{{ b.created_at[:16] }}</td>
+              <td>
+                <div style="display:inline-flex;gap:5px">
+                  <a class="btn btn-sec btn-ic" href="{{ url_for('download_exam_backup', backup_id=b.id) }}" title="Download">
+                    <svg class="ic ic-s"><use href="#i-download"></use></svg></a>
+                  <form method="post" action="{{ url_for('admin_delete_exam_backup', backup_id=b.id) }}"
+                        data-confirm="Delete this record?">
+                    <button class="btn btn-danger btn-ic" title="Delete">
+                      <svg class="ic ic-s"><use href="#i-trash"></use></svg></button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="only-mobile">
+      <div class="alist">
+        {% for b in backups %}
+          <details class="drow">
+            <summary class="drow-sum">
+              <span class="lrow-ic t-blue"><svg class="ic"><use href="#i-download"></use></svg></span>
+              <span class="lrow-main">
+                <b>{{ b.filename }}</b>
+                <small>
+                  {% if b.kind == 'papers' %}Papers + questions
+                  {% elif b.kind == 'results' %}Attempts + results
+                  {% else %}Full backup{% endif %}
+                  · {% if b.kind == 'results' %}{{ b.question_count }} attempt(s)
+                  {% else %}{{ b.exam_count }} paper(s) · {{ b.question_count }} Q(s){% endif %}
+                  · {{ b.created_at[:16] }}</small>
+              </span>
+              <span class="lrow-end">
+                {% if b.status == 'cloud' %}<span class="badge badge-green">Cloud</span>
+                {% else %}<span class="badge badge-amber">Local</span>{% endif %}
+              </span>
+              <svg class="ic chev"><use href="#i-chevron-r"></use></svg>
+            </summary>
+            <div class="drow-body">
+              <div class="drow-acts">
+                <a class="btn btn-p" href="{{ url_for('download_exam_backup', backup_id=b.id) }}">
+                  <svg class="ic ic-xs"><use href="#i-download"></use></svg>Download</a>
+                <form method="post" action="{{ url_for('admin_delete_exam_backup', backup_id=b.id) }}"
+                      data-confirm="Delete this record?">
+                  <button class="btn btn-danger"><svg class="ic ic-xs"><use href="#i-trash"></use></svg>Delete</button>
+                </form>
+              </div>
+            </div>
+          </details>
+        {% endfor %}
+      </div>
+    </div>
+  {% else %}
+    <div class="demo-note">
+      <svg class="ic ic-xs"><use href="#i-info"></use></svg>
+      Nothing synced yet — click "Sync data to Cloudinary" above.</div>
+  {% endif %}
+</div>
+{% endblock %}

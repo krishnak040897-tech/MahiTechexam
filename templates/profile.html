@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% from '_art.html' import media %}
+{% block title %}Profile — MahiTech{% endblock %}
+{% block content %}
+<div class="container">
+  <div class="acct">
+
+    <!-- profile header -->
+    <div class="profile">
+      <span class="avatar">{{ (session.get('user_name') or 'U')[:1]|upper }}</span>
+      <div>
+        <h1>Hi, {{ session.get('user_name') }}</h1>
+        <p>{{ user.email if user else 'Your learning overview' }}
+           {% if user and user.created_at %} · Member since {{ user.created_at[:10] }}{% endif %}</p>
+      </div>
+    </div>
+
+    <!-- stats -->
+    <div class="stats">
+      <div class="stat">
+        <span class="stat-ic t-green"><svg class="ic"><use href="#i-bag"></use></svg></span>
+        <div><b>{{ purchases|length }}</b><span>Purchases</span></div>
+      </div>
+      <div class="stat">
+        <span class="stat-ic t-blue"><svg class="ic"><use href="#i-card"></use></svg></span>
+        <div><b>₹{{ total_spent|inr }}</b><span>Total spent</span></div>
+      </div>
+    </div>
+
+    <!-- quick links -->
+    <div class="list-title">Quick links</div>
+    <div class="menu">
+      <a href="{{ url_for('my_purchases') }}">
+        <span class="mi t-green"><svg class="ic ic-s"><use href="#i-bag"></use></svg></span>
+        <span class="lbl">My library</span>
+        <span class="menu-val">{{ purchases|length }} item{{ 's' if purchases|length != 1 else '' }}</span>
+        <svg class="ic go"><use href="#i-chevron-r"></use></svg>
+      </a>
+      <a href="{{ url_for('browse') }}">
+        <span class="mi t-blue"><svg class="ic ic-s"><use href="#i-search"></use></svg></span>
+        <span class="lbl">Browse materials</span>
+        <svg class="ic go"><use href="#i-chevron-r"></use></svg>
+      </a>
+      <a href="{{ url_for('logout') }}" class="danger">
+        <span class="mi" style="background:var(--error-soft);color:var(--error)"><svg class="ic ic-s"><use href="#i-logout"></use></svg></span>
+        <span class="lbl">Logout</span>
+        <svg class="ic go"><use href="#i-chevron-r"></use></svg>
+      </a>
+    </div>
+
+    <!-- recent purchases -->
+    <div class="list-title">
+      <span>Recent purchases</span>
+      {% if purchases %}<a href="{{ url_for('my_purchases') }}">See all</a>{% endif %}
+    </div>
+
+    {% if purchases %}
+      <div class="menu">
+        {% for p in purchases[:6] %}
+          <a class="row-item" href="{{ url_for('product', product_id=p.product_id) if p.product_id else '#' }}">
+            <span class="row-art">{{ media(p) }}</span>
+            <span class="row-main">
+              <b>{{ p.product_title }}</b>
+              <small>{{ p.created_at[:10] }}</small>
+            </span>
+            <span class="row-end">
+              <b>₹{{ p.amount|inr }}</b>
+              {% if p.product_id %}<span class="badge badge-green"><svg class="ic ic-xs"><use href="#i-check"></use></svg>Paid</span>
+              {% else %}<span class="badge badge-amber">Removed</span>{% endif %}
+            </span>
+            <svg class="ic go"><use href="#i-chevron-r"></use></svg>
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty">
+        <svg class="empty-art" viewBox="0 0 160 110"><use href="#v-empty"></use></svg>
+        <p>No purchases yet — explore the catalog to get started.</p>
+        <a class="btn btn-p btn-sm" href="{{ url_for('browse') }}">Browse materials</a>
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

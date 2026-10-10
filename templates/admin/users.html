@@ -1,0 +1,83 @@
+{% extends 'base.html' %}
+{% block title %}Users — Admin — MahiTech{% endblock %}
+{% block content %}
+<div class="container">
+
+  <!-- header with back-to-profile link -->
+  <div class="page">
+    <a href="{{ url_for('admin_profile') }}"
+       style="display:inline-flex;align-items:center;gap:5px;font-size:12.5px;font-weight:600;color:var(--text-3);margin-bottom:4px">
+      <svg class="ic ic-xs" style="transform:rotate(180deg)"><use href="#i-chevron-r"></use></svg>Admin profile
+    </a>
+    <h1>User management</h1>
+    <p>{{ users|length }} registered user(s)</p>
+  </div>
+
+  {% if users %}
+    <!-- desktop: table -->
+    <div class="tbl-wrap only-desktop">
+      <table class="rt">
+        <thead><tr><th>ID</th><th>Username</th><th>Email</th><th>Joined</th><th>Purchases</th><th>Spent</th><th></th></tr></thead>
+        <tbody>
+          {% for u in users %}
+            <tr>
+              <td class="muted">#{{ u.id }}</td>
+              <td><strong>{{ u.username }}</strong></td>
+              <td class="muted" style="word-break:break-all">{{ u.email }}</td>
+              <td class="muted">{{ u.created_at[:10] }}</td>
+              <td><span class="badge">{{ u.purchase_count }}</span></td>
+              <td><strong>₹{{ u.total_spent|inr }}</strong></td>
+              <td>
+                <form method="post" action="{{ url_for('admin_delete_user', user_id=u.id) }}"
+                      data-confirm='Delete "{{ u.username }}"? Their purchase records will also be removed.'>
+                  <button class="btn btn-danger btn-sm">Delete</button>
+                </form>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- mobile: one-by-one rows with arrow (tap to expand) -->
+    <div class="only-mobile">
+      <div class="alist">
+        {% for u in users %}
+          <details class="drow">
+            <summary class="drow-sum">
+              <span class="lrow-ic t-green">{{ u.username[:1]|upper }}</span>
+              <span class="lrow-main">
+                <b>{{ u.username }}</b>
+                <small>{{ u.email }}</small>
+              </span>
+              <span class="lrow-end">
+                <span class="amt">₹{{ u.total_spent|inr }}</span>
+                <span class="badge">{{ u.purchase_count }} purchase{{ 's' if u.purchase_count != 1 else '' }}</span>
+              </span>
+              <svg class="ic chev"><use href="#i-chevron-r"></use></svg>
+            </summary>
+            <div class="drow-body">
+              <div class="drow-meta">
+                <div><span>User ID</span><b>#{{ u.id }}</b></div>
+                <div><span>Joined</span><b>{{ u.created_at[:10] }}</b></div>
+                <div style="grid-column:1/-1"><span>Email</span><b>{{ u.email }}</b></div>
+              </div>
+              <div class="drow-acts">
+                <form method="post" action="{{ url_for('admin_delete_user', user_id=u.id) }}"
+                      data-confirm='Delete "{{ u.username }}"? Their purchase records will also be removed.'>
+                  <button class="btn btn-danger"><svg class="ic ic-xs"><use href="#i-trash"></use></svg>Delete user</button>
+                </form>
+              </div>
+            </div>
+          </details>
+        {% endfor %}
+      </div>
+    </div>
+  {% else %}
+    <div class="empty">
+      <svg class="empty-art" viewBox="0 0 160 110"><use href="#v-empty"></use></svg>
+      <p>No registered users yet.</p>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

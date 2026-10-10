@@ -1,0 +1,356 @@
+{% extends 'base.html' %}
+{% block title %}{{ 'Edit exam' if exam else 'Create exam' }} — Admin{% endblock %}
+{% block content %}
+<style>
+/* ============ EXAM FORM (desktop + mobile responsive) ============ */
+
+/* section titles */
+.sec-title{display:flex;align-items:center;gap:7px;font-size:11.5px;font-weight:700;
+           letter-spacing:.07em;text-transform:uppercase;color:var(--text-3);
+           margin:22px 0 10px}
+.sec-title .ic{width:15px;height:15px;color:var(--primary);stroke-width:2.2;flex:none}
+.sec-title .cnt{margin-left:auto;background:var(--primary-soft);color:var(--primary);
+                border-radius:999px;padding:2px 9px;font-size:11px;font-weight:700;
+                letter-spacing:0;text-transform:none}
+
+/* question cards */
+.qitem{background:#fff;border:1px solid var(--border);border-radius:14px;
+       padding:14px;margin-bottom:10px}
+.qitem-head{display:flex;gap:10px;align-items:flex-start}
+.qnum{width:26px;height:26px;border-radius:8px;background:var(--primary-soft);
+      color:var(--primary);font-size:12px;font-weight:800;display:grid;
+      place-items:center;flex:none}
+.qtext{font-size:13.5px;flex:1;min-width:0;line-height:1.45}
+
+/* options: 2 columns on desktop, ONE PER LINE on mobile */
+.qopts{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+.qopt{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--text-2);
+      background:var(--bg-2);border:1px solid var(--border);border-radius:9px;
+      padding:7px 10px;min-width:0;line-height:1.4}
+.qopt i{font-style:normal;font-weight:800;font-size:11px;color:var(--text-3);
+        width:15px;flex:none;text-align:center;padding-top:1px}
+.qopt.is-correct{background:var(--success-soft);border-color:#CBEAD5;color:#166534}
+.qopt.is-correct i{color:var(--success)}
+
+/* actions row */
+.qacts{display:flex;gap:6px;align-items:center;margin-top:10px;flex-wrap:wrap}
+.qacts-r{display:flex;gap:6px;margin-left:auto}
+.qacts-r form{margin:0;display:flex}
+
+/* A/B/C/D segmented correct-option picker */
+.seg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.seg-btn{position:relative;display:block}
+.seg-btn input{position:absolute;opacity:0;pointer-events:none}
+.seg-btn span{display:flex;align-items:center;justify-content:center;min-height:44px;
+              border:1.5px solid var(--border);border-radius:10px;font-weight:700;
+              font-size:13.5px;cursor:pointer;transition:.15s;background:#fff;
+              color:var(--text-2);-webkit-tap-highlight-color:transparent}
+.seg-btn:hover span{border-color:var(--primary)}
+.seg-btn input:checked + span{border-color:var(--primary);background:var(--primary-soft);
+                              color:var(--primary)}
+.seg-btn input:focus-visible + span{outline:2px solid var(--primary);outline-offset:2px}
+
+/* ============ LOADING OVERLAY + BUTTON SPINNER (anti double-submit) ============ */
+.load-ov{position:fixed;inset:0;z-index:800;background:rgba(16,24,40,.45);
+         display:none;place-items:center;padding:20px}
+.load-ov.show{display:grid}
+.load-box{background:#fff;border-radius:16px;padding:22px 26px;text-align:center;
+          max-width:320px;width:100%;box-shadow:0 12px 34px rgba(16,24,40,.28)}
+.load-box b{display:block;font-size:14.5px;margin-top:2px}
+.load-box small{display:block;font-size:12px;color:var(--text-3);margin-top:4px;
+                line-height:1.45}
+.load-spin{display:block;width:34px;height:34px;margin:0 auto 10px;
+           border:3.5px solid var(--primary-soft);border-top-color:var(--primary);
+           border-radius:50%;animation:spin .8s linear infinite}
+.btn-spin{display:inline-block;width:13px;height:13px;border:2px solid rgba(255,255,255,.45);
+          border-top-color:#fff;border-radius:50%;vertical-align:-2px;margin-right:3px;
+          animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ============ MOBILE ============ */
+@media(max-width:700px){
+  .qitem{padding:12px}
+  .qnum{width:24px;height:24px}
+  .qopts{grid-template-columns:1fr}
+  .qopt{font-size:13px;padding:9px 11px}
+  .qacts-r{margin-left:0;width:100%;margin-top:4px}
+  .qacts-r .btn{flex:1;min-height:40px;justify-content:center}
+  .sec-title{margin:18px 0 9px}
+}
+@media(max-width:400px){
+  .seg{gap:5px}
+  .seg-btn span{min-height:42px;font-size:12.5px}
+}
+</style>
+
+<div class="container">
+
+  <!-- ============ EXAM DETAILS + FILES ============ -->
+  <form class="form-page" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="action" value="save_exam">
+    <div class="form-head">
+      <h1>{{ 'Edit exam paper' if exam else 'Create exam paper' }}</h1>
+      <p>{{ 'Pricing, timer, files and questions' if exam else 'Set the price, add files and MCQs — users buy each paper' }}</p>
+    </div>
+
+    <!-- SECTION: details -->
+    <div class="sec-title">
+      <svg class="ic"><use href="#i-edit"></use></svg>Exam details
+    </div>
+    <div class="fgrid">
+      <div class="f full"><label>Exam Title</label>
+        <input class="inp" type="text" name="title" required
+               value="{{ exam.title if exam else '' }}"
+               placeholder="e.g. SSC CGL Practice Test 1"></div>
+
+      <div class="f"><label>Price (₹) <span class="muted small" style="font-weight:400">(0 = free)</span></label>
+        <input class="inp" type="number" name="price" min="0" step="0.01" required
+               value="{{ exam.price if exam else 0 }}"></div>
+
+      <div class="f"><label>Duration (minutes)</label>
+        <input class="inp" type="number" name="duration_minutes" min="1" required
+               value="{{ exam.duration_minutes if exam else 15 }}"></div>
+
+      <div class="f full"><label>Pass percentage (%)</label>
+        <input class="inp" type="number" name="pass_percent" min="0" max="100" required
+               value="{{ exam.pass_percent if exam else 40 }}"></div>
+
+      <div class="f full"><label>Description <span class="muted small" style="font-weight:400">(optional)</span></label>
+        <textarea class="inp" name="description" rows="2"
+                  placeholder="What does this paper cover?">{{ exam.description if exam else '' }}</textarea></div>
+    </div>
+
+    <!-- SECTION: files -->
+    <div class="sec-title">
+      <svg class="ic"><use href="#i-image"></use></svg>Files — stored on Cloudinary
+    </div>
+
+    <div class="f full">
+      <label>Thumbnail <span class="muted small" style="font-weight:400">(optional — shown on exam cards)</span></label>
+      <label class="up-field">
+        <input type="file" name="thumbnail" accept="image/*">
+        <span class="up-ic"><svg class="ic ic-s"><use href="#i-image"></use></svg></span>
+        <span class="up-txt"><b class="up-name" data-default="Choose thumbnail image">
+          {{ exam.thumbnail if exam and exam.thumbnail else 'Choose thumbnail image' }}</b>
+          <small>PNG, JPG or WEBP · local fallback if cloud fails</small></span>
+      </label>
+    </div>
+
+    <!-- live thumbnail preview (current image on edit, chosen image on select) -->
+    <div class="f full" id="thumbPrevBox"
+         style="display:{{ 'block' if exam and exam.thumbnail else 'none' }}">
+      <label>Thumbnail preview</label>
+      <div style="width:100%;max-width:280px;aspect-ratio:16/10;border:1px solid var(--border);
+                  border-radius:12px;overflow:hidden;background:var(--bg-2)">
+        <img id="thumbPrev" style="width:100%;height:100%;object-fit:cover;object-position:center"
+             alt="Thumbnail preview"
+             src="{{ (exam.thumbnail if exam and exam.thumbnail else '')|thumb_url }}">
+      </div>
+    </div>
+
+    <div class="f full">
+      <label>Supporting PDF <span class="muted small" style="font-weight:400">(optional — syllabus / answer key / study PDF)</span></label>
+      <label class="up-field">
+        <input type="file" name="pdf_file" accept=".pdf">
+        <span class="up-ic"><svg class="ic ic-s"><use href="#i-file"></use></svg></span>
+        <span class="up-txt"><b class="up-name" data-default="Choose PDF file">
+          {{ exam.pdf_file if exam and exam.pdf_file else 'Choose PDF file' }}</b>
+          <small>.pdf only · delivered only to buyers and admin</small></span>
+      </label>
+    </div>
+
+    <div class="form-acts">
+      <button class="btn btn-p" data-loading="{{ 'Saving exam' if exam else 'Creating exam' }}">
+        <svg class="ic ic-s"><use href="#i-check"></use></svg>
+        {{ 'Save exam' if exam else 'Create exam' }}</button>
+      <a class="btn btn-sec" href="{{ url_for('admin_exams') }}">Back to exams</a>
+    </div>
+  </form>
+
+  {% if exam %}
+  <!-- ============ QUESTIONS ============ -->
+  <div class="form-page" style="padding-top:6px">
+
+    <div class="sec-title">
+      <svg class="ic"><use href="#i-pen"></use></svg>Questions
+      <span class="cnt">{{ questions|length }}</span>
+    </div>
+
+    {% for q in questions %}
+      <div class="qitem">
+        <div class="qitem-head">
+          <span class="qnum">{{ loop.index }}</span>
+          <b class="qtext">{{ q.question }}</b>
+        </div>
+
+        <div class="qopts">
+          <span class="qopt {{ 'is-correct' if q.correct == 'a' }}"><i>A</i><span>{{ q.opt_a }}</span></span>
+          <span class="qopt {{ 'is-correct' if q.correct == 'b' }}"><i>B</i><span>{{ q.opt_b }}</span></span>
+          <span class="qopt {{ 'is-correct' if q.correct == 'c' }}"><i>C</i><span>{{ q.opt_c }}</span></span>
+          <span class="qopt {{ 'is-correct' if q.correct == 'd' }}"><i>D</i><span>{{ q.opt_d }}</span></span>
+        </div>
+
+        <div class="qacts">
+          <span class="badge badge-green">
+            <svg class="ic ic-xs"><use href="#i-check"></use></svg>
+            Answer: {{ q.correct|upper }}</span>
+          <div class="qacts-r">
+            <a class="btn btn-sec btn-sm"
+               href="{{ url_for('admin_edit_exam', exam_id=exam.id, qid=q.id) }}#qform">
+              <svg class="ic ic-xs"><use href="#i-edit"></use></svg>Edit</a>
+            <form method="post" action="{{ url_for('admin_delete_question', qid=q.id) }}"
+                  data-confirm="Delete this question?">
+              <button class="btn btn-danger btn-sm">
+                <svg class="ic ic-xs"><use href="#i-trash"></use></svg>Delete</button>
+            </form>
+          </div>
+        </div>
+      </div>
+    {% else %}
+      <div class="demo-note">
+        <svg class="ic ic-xs"><use href="#i-info"></use></svg>
+        No questions yet — add the first MCQ below.</div>
+    {% endfor %}
+
+    <!-- ============ ADD / EDIT QUESTION ============ -->
+    <div class="sec-title" id="qform">
+      <svg class="ic"><use href="#i-plus"></use></svg>
+      {{ 'Edit question' if edit_q else 'Add question' }}
+    </div>
+
+    <form method="post">
+      <input type="hidden" name="action" value="save_question">
+      {% if edit_q %}<input type="hidden" name="question_id" value="{{ edit_q.id }}">{% endif %}
+
+      <div class="f"><label>Question</label>
+        <textarea class="inp" name="question" rows="2" required
+                  placeholder="Type the question…">{{ edit_q.question if edit_q else '' }}</textarea></div>
+
+      <div class="fgrid">
+        <div class="f"><label>Option A</label>
+          <input class="inp" type="text" name="opt_a" required
+                 value="{{ edit_q.opt_a if edit_q else '' }}"></div>
+        <div class="f"><label>Option B</label>
+          <input class="inp" type="text" name="opt_b" required
+                 value="{{ edit_q.opt_b if edit_q else '' }}"></div>
+        <div class="f"><label>Option C</label>
+          <input class="inp" type="text" name="opt_c" required
+                 value="{{ edit_q.opt_c if edit_q else '' }}"></div>
+        <div class="f"><label>Option D</label>
+          <input class="inp" type="text" name="opt_d" required
+                 value="{{ edit_q.opt_d if edit_q else '' }}"></div>
+      </div>
+
+      <div class="f">
+        <label>Correct option <span class="muted small" style="font-weight:400">(tap A, B, C or D)</span></label>
+        <div class="seg">
+          {% for k in ['a','b','c','d'] %}
+            <label class="seg-btn">
+              <input type="radio" name="correct" value="{{ k }}" required
+                     {{ 'checked' if edit_q and edit_q.correct == k }}>
+              <span>{{ k|upper }}</span>
+            </label>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="form-acts">
+        <button class="btn btn-p" data-loading="{{ 'Updating question' if edit_q else 'Adding question' }}">
+          <svg class="ic ic-s"><use href="#i-plus"></use></svg>
+          {{ 'Update question' if edit_q else 'Add question' }}</button>
+        {% if edit_q %}
+          <a class="btn btn-sec" href="{{ url_for('admin_edit_exam', exam_id=exam.id) }}">Cancel edit</a>
+        {% endif %}
+      </div>
+    </form>
+
+  </div>
+  {% endif %}
+</div>
+
+<!-- ============ LOADING OVERLAY (blocks double-clicks while saving) ============ -->
+<div class="load-ov" id="loadOverlay" aria-hidden="true">
+  <div class="load-box">
+    <span class="load-spin"></span>
+    <b id="loadTitle">Working…</b>
+    <small>Saving to the database — please wait. Don't press Back or refresh.</small>
+  </div>
+</div>
+
+<script>
+/* 1) live thumbnail preview (works on add + edit) */
+(function () {
+  const inp = document.querySelector('input[name="thumbnail"]');
+  const box = document.getElementById("thumbPrevBox");
+  const img = document.getElementById("thumbPrev");
+  if (!inp || !box || !img) return;
+  inp.addEventListener("change", () => {
+    if (inp.files && inp.files[0]) {
+      img.src = URL.createObjectURL(inp.files[0]);
+      box.style.display = "block";
+    }
+  });
+})();
+
+/* 2) show the chosen filename inside every upload zone */
+(function () {
+  document.querySelectorAll(".up-field input[type=file]").forEach(function (inp) {
+    inp.addEventListener("change", function () {
+      const zone = inp.closest(".up-field");
+      const nameEl = zone ? zone.querySelector(".up-name") : null;
+      if (nameEl && inp.files && inp.files[0]) {
+        nameEl.textContent = inp.files[0].name;
+      }
+    });
+  });
+})();
+
+/* 3) scroll to the question form when arriving via an Edit link */
+(function () {
+  if (window.location.hash === "#qform") {
+    const el = document.getElementById("qform");
+    if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "start" }), 60);
+  }
+})();
+
+/* 4) DOUBLE-SUBMIT GUARD + LOADING INDICATION
+   Because PostgreSQL and Cloudinary are REMOTE, saving takes a second or
+   three. Without feedback users click again -> duplicate exams get created.
+   On the FIRST submit: every button in the form is disabled, the submit
+   button becomes a spinner with its own label, and a page-wide overlay
+   blocks all further clicks/links until the page navigates.
+   (Forms with data-confirm are skipped — the confirm modal owns those.) */
+(function () {
+  const overlay = document.getElementById("loadOverlay");
+  const titleEl = document.getElementById("loadTitle");
+
+  document.querySelectorAll("form").forEach(function (form) {
+    if (form.hasAttribute("data-confirm")) return;   // delete forms -> modal
+
+    form.addEventListener("submit", function (ev) {
+      /* second submission while the first is still in flight -> cancel it */
+      if (form.getAttribute("data-submitting") === "1") {
+        ev.preventDefault();
+        return;
+      }
+      form.setAttribute("data-submitting", "1");
+
+      const btn = form.querySelector("button");
+      const label = (btn && btn.getAttribute("data-loading")) || "Saving";
+
+      /* disable every button in this form so nothing can be re-clicked */
+      form.querySelectorAll("button").forEach(function (b) { b.disabled = true; });
+
+      /* swap the submit button to a spinner + its loading label */
+      if (btn) {
+        btn.innerHTML = '<span class="btn-spin"></span>' + label + "…";
+      }
+
+      /* page-wide overlay: blocks all other clicks/links */
+      if (titleEl) titleEl.textContent = label + "…";
+      if (overlay) overlay.classList.add("show");
+    });
+  });
+})();
+</script>
+{% endblock %}
