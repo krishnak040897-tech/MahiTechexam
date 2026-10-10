@@ -1,31 +1,32 @@
-"""models.py — Neon PostgreSQL data layer (psycopg2).
+"""models.py — Neon PostgreSQL data layer (psycopg2) — FAST VERSION.
 
-Drop-in replacement for the SQLite layer: every function keeps the SAME
-name, signature and return shape (dict rows, "YYYY-MM-DD HH:MM:SS"
-timestamp strings, new ids returned from inserts), so app.py, all
-templates, Razorpay, Cloudinary and the exam-timer logic are unchanged.
+Drop-in replacement: every function keeps the SAME name, signature and
+return shape, so app.py, templates, Razorpay and Cloudinary are unchanged.
 
-Key protections built in:
-  1. URL resolution is IDENTICAL in every process (Flask debug mode runs a
-     parent + 'Restarting with stat' child; a stray/empty DATABASE_URL env
-     var used to make the child dial localhost:5432 and kill the app). An
-     env var is trusted ONLY if it is a real postgres:// URL that does not
-     point at localhost; otherwise the hardcoded Neon URL from config.py
-     wins. On Vercel your DATABASE_URL env var still wins.
-  2. _ensure_columns() REPAIRS pre-existing tables with older shapes —
-     CREATE TABLE IF NOT EXISTS never upgrades a table that already exists
-     (this is what broke the migration: Neon's 'exams' table had no
-     thumbnail/pdf_file columns). Additive + idempotent on every startup.
-  3. Connection test runs the reference checks (current_database /
-     current_user / SELECT 1) with retries for Neon cold starts.
-  4. Timestamps: writes pass Python-LOCAL strings; reads convert datetime
-     objects back to the same string — templates and the server-side exam
-     timer behave exactly as with SQLite.
-  5. Row access: RealDictCursor -> plain dicts (row["col"] and row.col).
-     Ids: INSERT ... RETURNING id. Placeholders: %s.
+WHY THE APP WAS SLOW AND WHAT FIXED IT:
+  Every _query/_write used to open a NEW connection to Neon (internet + TLS
+  + SCRAM auth each time = 0.5-1.5s per call). Pages making 2-7 DB calls
+  waited seconds. Now:
+    1. get_db()  borrows a WARM connection from a small pool (handshake
+       happens once per process, not once per query).
+    2. _park()   returns the connection to the pool after each query.
+    3. autocommit=True -> statements commit instantly and parked
+       connections are always in a clean state.
+    4. Dead connections (Neon idle timeouts / network resets) are detected,
+       discarded, and the query is RETRIED once on a fresh connection.
+    5. The startup schema/repair check runs as ONE metadata query (was 21).
+
+Guarantees kept:
+    - Same DATABASE_URL in every process (parent + debug-reloader child).
+    - Timestamps round-trip as "YYYY-MM-DD HH:MM:SS" strings (templates +
+      the server-side exam timer work unchanged).
+    - Dict rows (row["col"] and row.col in Jinja), INSERT ... RETURNING id,
+      %s placeholders, FKs enforced by PostgreSQL.
 """
 import os
+import threading
 import time
+from collections import deque
 from datetime import datetime
 
 import psycopg2
@@ -39,12 +40,10 @@ SCHEMA_VERSION = 5
 # ---------------- bulletproof URL resolution (same in EVERY process) ----------------
 def _resolve_database_url():
     """
-    Returns (url, source_description).
-
     An environment DATABASE_URL is used ONLY when it is a non-empty
-    postgres:// / postgresql:// URL that does NOT point at localhost —
-    a stray/empty/localhost value (what broke the reloader child) is
-    ignored and the hardcoded Neon URL from config.py is used instead.
+    postgres:// URL that does NOT point at localhost — a stray/empty/localhost
+    value (what broke the reloader child) is ignored and the hardcoded Neon
+    URL from config.py is used instead. On Vercel the env var still wins.
     """
     env = (os.environ.get("DATABASE_URL") or "").strip()
     if (env.startswith(("postgres://", "postgresql://"))
@@ -180,10 +179,6 @@ DEMO_PRODUCTS = [
 
 
 # ---------------- schema repair (pre-existing/older table shapes) ----------------
-# CREATE TABLE IF NOT EXISTS never upgrades a table that already exists.
-# If a table was created earlier with an older shape (e.g. 'exams' without
-# thumbnail/pdf_file), these ALTERs add the missing columns — additive and
-# idempotent, so it is safe on every startup (locally and on Vercel).
 _ENSURE_COLUMNS = [
     ("users",          "created_at",     "TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP"),
     ("products",       "thumbnail",      "TEXT"),
@@ -210,31 +205,88 @@ _ENSURE_COLUMNS = [
 
 
 def _ensure_columns(conn):
-    """Add any missing columns to existing tables. Prints what was fixed."""
-    fixed = []
+    """
+    Add any missing columns to existing tables — runs as ONE metadata query
+    (used to be 21 queries at every startup, which was slow).
+    """
+    tables = tuple(sorted({t for (t, _c, _d) in _ENSURE_COLUMNS}))
+    have = set()
     with conn.cursor() as cur:
-        for table, column, ddl in _ENSURE_COLUMNS:
-            cur.execute(
-                """SELECT 1 FROM information_schema.columns
-                   WHERE table_name = %s AND column_name = %s""",
-                (table, column))
-            if cur.fetchone() is None:
+        cur.execute(
+            """SELECT table_name, column_name FROM information_schema.columns
+               WHERE table_name IN %s""", (tables,))
+        for r in cur.fetchall():
+            have.add((r[0], r[1]))
+    missing = [x for x in _ENSURE_COLUMNS if (x[0], x[1]) not in have]
+    if missing:
+        with conn.cursor() as cur:
+            for table, column, ddl in missing:
                 cur.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
-                fixed.append(f"{table}.{column}")
-    if fixed:
         print("[MahiTech] Schema repair: added missing column(s) -> "
-              + ", ".join(fixed))
+              + ", ".join(f"{t}.{c}" for t, c, _d in missing))
     else:
         print("[MahiTech] Schema columns verified — nothing to repair.")
 
 
-# ---------------- connection + shared helpers ----------------
+# ---------------- warm connection pool (THE speed fix) ----------------
+_IDLE_MAX = 6                      # warm connections kept for reuse
+_idle = deque()
+_pool_lock = threading.Lock()
+
+
+def _new_conn():
+    conn = psycopg2.connect(DATABASE_URL, connect_timeout=15)
+    conn.autocommit = True         # every statement commits instantly; a
+                                   # parked connection is always clean
+    return conn
+
+
 def get_db():
-    """One PostgreSQL connection per call — the Neon POOLER endpoint
-    (already in the URL) is built exactly for this usage pattern."""
-    return psycopg2.connect(DATABASE_URL, connect_timeout=15)
+    """Borrow a WARM connection (handshake happens once per process)."""
+    while True:
+        with _pool_lock:
+            conn = _idle.popleft() if _idle else None
+        if conn is None:
+            return _new_conn()
+        if not conn.closed:
+            return conn
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
+def _park(conn):
+    """Return a healthy connection to the pool for the next query."""
+    if conn is None:
+        return
+    if conn.closed:
+        try:
+            conn.close()
+        except Exception:
+            pass
+        return
+    with _pool_lock:
+        if len(_idle) < _IDLE_MAX:
+            _idle.append(conn)
+            return
+    try:                            # pool full -> just disconnect
+        conn.close()
+    except Exception:
+        pass
+
+
+def _drop(conn):
+    """Discard a broken connection (never reuse it)."""
+    if conn is None:
+        return
+    try:
+        conn.close()
+    except Exception:
+        pass
+
+
+# ---------------- shared query helpers ----------------
 def _now():
     """Local timestamp string — the exact format the old SQLite layer used."""
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -248,50 +300,49 @@ def _norm_value(v):
     return v
 
 
+def _run(sql, params, one=False, returning_id=False):
+    """
+    Execute one statement on a warm connection.
+    On connection-level failures (Neon idle-timeout kills, network resets)
+    the connection is discarded and the statement is RETRIED once on a
+    fresh connection.
+    """
+    params = tuple(params)
+    for attempt in (1, 2):
+        conn = get_db()
+        try:
+            with conn.cursor(cursor_factory=_DictCursor) as cur:
+                cur.execute(sql, params)
+                if returning_id:
+                    row = cur.fetchone()
+                    result = (row["id"] if row else None)
+                else:
+                    rows = [{k: _norm_value(v) for k, v in r.items()}
+                            for r in cur.fetchall()]
+                    result = (rows[0] if rows else None) if one else rows
+            _park(conn)                 # healthy -> reuse next query
+            return result
+        except (psycopg2.OperationalError, psycopg2.InterfaceError) as exc:
+            _drop(conn)                 # dead connection -> never reuse
+            if attempt == 1:
+                continue                # retry once on a fresh connection
+            raise
+        except psycopg2.Error:
+            _park(conn)                 # SQL-level error: conn is healthy
+            raise
+
+
 def _query(sql, params=(), one=False):
-    """Run a SELECT, return list of dict rows (or a single row)."""
-    conn = get_db()
-    try:
-        with conn.cursor(cursor_factory=_DictCursor) as cur:
-            cur.execute(sql, tuple(params))
-            rows = [{k: _norm_value(v) for k, v in r.items()}
-                    for r in cur.fetchall()]
-        return (rows[0] if rows else None) if one else rows
-    finally:
-        conn.close()          # read-only: closing discards the transaction
+    """SELECT -> list of dict rows (or a single row)."""
+    return _run(sql, params, one=one)
 
 
 def _write(sql, params=(), returning_id=False):
-    """Run an INSERT/UPDATE/DELETE + COMMIT. Returns the new id if asked."""
-    conn = get_db()
-    try:
-        with conn.cursor(cursor_factory=_DictCursor) as cur:
-            cur.execute(sql, tuple(params))
-            new_id = None
-            if returning_id:
-                row = cur.fetchone()
-                new_id = row["id"] if row else None
-        conn.commit()
-        return new_id
-    finally:
-        conn.close()          # on error: closing without commit -> rollback
+    """INSERT/UPDATE/DELETE (committed instantly). Returns the new id if asked."""
+    return _run(sql, params, returning_id=returning_id)
 
 
 # ---------------- meta helpers ----------------
-def _get_meta(conn, key):
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT value FROM meta WHERE key = %s", (key,))
-            row = cur.fetchone()
-            return row[0] if row else None
-    except psycopg2.Error:
-        try:
-            conn.rollback()
-        except Exception:
-            pass
-        return None
-
-
 def _set_meta(conn, key, value):
     with conn.cursor() as cur:
         cur.execute(
@@ -320,8 +371,7 @@ def _print_summary():
 
 # ---------------- connection test (with retries for Neon cold starts) ----------------
 def _try_connect(attempts=3, wait=2):
-    """Try to connect + run the reference checks. Returns (conn, info) or
-    (None, last_error) after all attempts."""
+    """Connect + run the reference checks. Returns (conn, info) or (None, error)."""
     last_error = None
     for i in range(1, attempts + 1):
         conn = None
@@ -336,7 +386,6 @@ def _try_connect(attempts=3, wait=2):
                 cur.execute("SELECT 1")
                 if cur.fetchone()[0] != 1:
                     raise psycopg2.Error("SELECT 1 did not return 1")
-            conn.commit()
             return conn, (database, user, version)
         except (psycopg2.OperationalError, psycopg2.Error) as error:
             last_error = error
@@ -372,13 +421,12 @@ def init_db(seed=False):
     conn.close()
     print("[MahiTech] Connection test closed.")
 
-    # ---- 2) schema + repair + meta + optional demo seed ----
+    # ---- 2) schema + repair + meta + optional demo seed (warm connection) ----
     conn = get_db()
     try:
         with conn.cursor() as cur:
-            cur.execute(SCHEMA)          # CREATE TABLE IF NOT EXISTS — idempotent
-        _ensure_columns(conn)            # REPAIR: add columns missing from
-                                         # pre-existing/older table shapes
+            cur.execute(SCHEMA)          # one round trip (multi-statement)
+        _ensure_columns(conn)            # one metadata query + repairs if needed
         _set_meta(conn, "schema_version", str(SCHEMA_VERSION))
         if seed:
             with conn.cursor(cursor_factory=_DictCursor) as cur:
@@ -390,10 +438,12 @@ def init_db(seed=False):
                            VALUES (%s, %s, %s, %s, %s, %s)""",
                         [(t, d, c, p, ct, _now())
                          for (t, d, c, p, ct) in DEMO_PRODUCTS])
-        conn.commit()
+                    print("[MahiTech] Seeded 5 demo products.")
         print(f"[MahiTech] PostgreSQL schema ready (schema_version={SCHEMA_VERSION}).")
+        print("[MahiTech] Warm connection pool ACTIVE — queries reuse one "
+              "connection instead of reconnecting every time.")
     finally:
-        conn.close()
+        _park(conn)
 
     _print_summary()
 
@@ -572,6 +622,12 @@ def get_exam_by_id(exam_id):
     return _query("SELECT * FROM exams WHERE id = %s", (exam_id,), one=True)
 
 
+def get_exam_by_title(title):
+    """Exact-title lookup — duplicate guard for exam creation (stops
+    double-clicks/refresh from creating two exams with the same title)."""
+    return _query("SELECT * FROM exams WHERE title = %s", (title,), one=True)
+
+
 def get_exams():
     """All exam papers (public browse + admin), with question counts."""
     return _query(
@@ -585,6 +641,7 @@ def count_exams():
 
 
 def set_exam_file(exam_id, column, value):
+    """Point one exam file column at a new reference (migrate_to_cloudinary.py)."""
     if column not in ("thumbnail", "pdf_file"):
         raise ValueError("bad column")
     _write(f"UPDATE exams SET {column}=%s WHERE id=%s", (value, exam_id))
@@ -743,3 +800,16 @@ def get_exam_backup_by_id(backup_id):
 
 def delete_exam_backup(backup_id):
     _write("DELETE FROM exam_backups WHERE id = %s", (backup_id,))
+
+
+# ---------------- ADMIN HUB (all counters in ONE query) ----------------
+def get_admin_stats():
+    """Users/products/purchases/exams/revenue for the admin hub — 1 query
+    instead of 5 (page loads much faster)."""
+    return _query(
+        """SELECT (SELECT COUNT(*) FROM users)                      AS users,
+                  (SELECT COUNT(*) FROM products)                   AS products,
+                  (SELECT COUNT(*) FROM purchases)                  AS purchases,
+                  (SELECT COUNT(*) FROM exams)                      AS exams,
+                  (SELECT COALESCE(SUM(amount), 0) FROM purchases)  AS revenue""",
+        one=True)
