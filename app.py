@@ -1,17 +1,18 @@
 """
 app.py — MahiTech | Simple educational marketplace
-Run:  python app.py   ->   http://127.0.0.1:5000
+Run:  python app.py   ->   http://127.0.0.1:5000  (or http://<your-ip>:5000)
 
 Payments: Razorpay for products AND exam papers (server-side verification).
 Storage:  Cloudinary (files) + local fallback.
           products : mahitech/thumbnails|pdfs|videos
           exams    : mahitech/exams/thumbnails|pdfs
-          DATA     : mahitech/exam-data  (readable JSON: questions, attempts,
-                     results — synced via the 'Sync data to Cloudinary' button)
+          DATA     : mahitech/exam-data  (questions + results JSON sync)
           backups  : mahitech/exam-backups
-Exams:    Standalone purchasable MCQ papers. SQLite is the live source of
-          ALL data; Cloudinary holds readable JSON copies + files.
-Admin:    Attempts & Results page (/admin/attempts), media-debug, data sync.
+Database: Neon PostgreSQL via models.py — WARM CONNECTION POOL (fast pages:
+          one connection reused per query instead of a new handshake each
+          time), schema auto-repair, same URL in every process.
+Exams:    Standalone purchasable MCQ papers; admin gets full preview
+          (questions + answers); attempts & results page for the admin.
 """
 import hashlib
 import hmac
@@ -88,6 +89,7 @@ def is_admin():
 
 
 def login_required(f):
+    """For user-only pages. Admin sessions are sent to the admin panel."""
     @wraps(f)
     def wrapper(*args, **kwargs):
         if is_admin() and not session.get("user_id"):
@@ -112,6 +114,7 @@ def admin_or_login_required(f):
 
 
 def api_login_required(f):
+    """For JSON payment endpoints: return JSON errors instead of redirects."""
     @wraps(f)
     def wrapper(*args, **kwargs):
         if not session.get("user_id"):
@@ -123,6 +126,7 @@ def api_login_required(f):
 
 
 def media_login_required(f):
+    """Allows EITHER a logged-in user OR the admin session to reach media routes."""
     @wraps(f)
     def wrapper(*args, **kwargs):
         if session.get("user_id") or is_admin():
@@ -151,6 +155,7 @@ def allowed_file(filename, exts):
 
 
 def _exam_allowed(exam):
+    """Exam access: admin preview, or the user bought this paper."""
     return is_admin() or (session.get("user_id")
                           and models.has_purchased_exam(session["user_id"], exam["id"]))
 
@@ -169,6 +174,13 @@ def _url_status(url, timeout=10):
 # ---- template helpers ----
 @app.template_filter("thumb_url")
 def thumb_url(value):
+    """
+    Display URL for a stored thumbnail (products AND exams).
+      - Cloudinary URL -> SIGNED optimized URL (f_auto,q_auto over the REAL
+        version) — works even if the account blocks unsigned derived
+        transformations (the usual reason thumbnails don't display).
+      - local filename  -> /static/uploads/thumbnails/<name>
+    """
     if not value:
         return ""
     if value.startswith("http"):
@@ -245,6 +257,7 @@ def product(product_id):
 
 @app.route("/exams")
 def exams_browse():
+    """All exam papers — visible to everyone; each paper is bought separately."""
     exams = models.get_exams()
     owned_ids = (models.get_owned_exam_ids(session["user_id"])
                  if session.get("user_id") else set())
@@ -805,17 +818,18 @@ def exam_result(attempt_id):
                            review=review, percent=percent, passed=passed)
 
 
-# ================= ADMIN: PROFILE =================
+# ================= ADMIN: PROFILE (HUB) =================
 @app.route("/admin/profile")
 @admin_required
 def admin_profile():
+    stats = models.get_admin_stats()          # ONE query instead of five
     return render_template(
         "admin/profile.html",
-        users=models.count_users(),
-        products=models.count_products(),
-        purchases=models.count_purchases(),
-        exams=models.count_exams(),
-        revenue=models.total_revenue(),
+        users=stats["users"],
+        products=stats["products"],
+        purchases=stats["purchases"],
+        exams=stats["exams"],
+        revenue=stats["revenue"],
         recent=models.get_all_purchases(limit=6))
 
 
@@ -899,6 +913,15 @@ def admin_add_exam():
         if not title:
             flash("Exam title is required.", "error")
             return render_template("admin/exam_form.html", exam=None)
+
+        # duplicate guard: same title -> open the existing paper instead of
+        # creating a second one (protects against double-clicks/refresh)
+        dup = models.get_exam_by_title(title)
+        if dup:
+            flash(f'An exam paper "{title}" already exists — opened it instead of '
+                  'creating a duplicate. Want a copy? Slightly change the title.',
+                  "error")
+            return redirect(url_for("admin_edit_exam", exam_id=dup["id"]))
 
         thumbnail, pdf_file, error = _exam_form_files(None)
         if error:
@@ -1007,20 +1030,14 @@ def admin_delete_question(qid):
 @admin_required
 def admin_sync_exams():
     """
-    Sync the exam DATA (the 'text' — not just files) to Cloudinary, folder
-    mahitech/exam-data/:
-      1. papers_questions_<ts>.json — every paper + every manually-entered
-         question WITH its correct answer
-      2. attempts_results_<ts>.json — every user attempt: user, exam, score,
-         percent, passed, answers, timestamps
-    Both uploads are verified server-side and recorded in exam_backups, so
-    they show in the list below and stay downloadable. SQLite remains the
-    live source; Cloudinary holds a readable copy.
+    Sync the exam DATA (the 'text') to Cloudinary, folder mahitech/exam-data/:
+      1. papers_questions_<ts>.json — every paper + question WITH answers
+      2. attempts_results_<ts>.json — every user attempt + result
+    Both uploads are verified server-side and recorded in exam_backups.
     """
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     exported_at = datetime.now().isoformat(timespec="seconds")
 
-    # ---- 1) papers + questions (the manually prepared content) ----
     exams = models.get_exams()
     papers = []
     total_questions = 0
@@ -1038,7 +1055,6 @@ def admin_sync_exams():
          "question_count": total_questions, "exams": papers},
         indent=2).encode("utf-8")
 
-    # ---- 2) attempts + results (users' scores) ----
     attempts = models.get_all_attempts()
     results = []
     passed_count = 0
@@ -1068,7 +1084,6 @@ def admin_sync_exams():
 
     distinct_exams = len({a["exam_id"] for a in attempts}) if attempts else 0
 
-    # ---- upload both + verify + record ----
     uploads = (
         ("papers", f"papers_questions_{stamp}.json", papers_data,
          len(exams), total_questions),
@@ -1100,7 +1115,6 @@ def admin_sync_exams():
 @app.route("/admin/exams/backups/<int:backup_id>")
 @admin_required
 def download_exam_backup(backup_id):
-    """Open/download a recorded data file (Cloudinary signed URL, or local)."""
     b = models.get_exam_backup_by_id(backup_id)
     if not b:
         abort(404)
