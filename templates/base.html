@@ -597,6 +597,65 @@ a.stat:hover{border-color:var(--primary)}
   *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;
     transition-duration:.01ms!important;scroll-behavior:auto!important}
 }
+
+/* ================================================================
+   FULL-WIDTH LAYOUT + DESIGN REFRESH (desktop only — mobile-safe)
+   ================================================================ */
+
+/* soft background fade at the top of every page */
+body{background:linear-gradient(180deg,#F6F8FA 0%,var(--bg) 420px)}
+
+@media (min-width:861px){
+  /* ---- 1) FULL PAGE WIDTH ---- */
+  .container{width:100%;max-width:none;--pad:clamp(18px,3vw,46px)}
+
+  /* ---- 2) wider content blocks ---- */
+  .form-page{max-width:940px}
+  .acct{max-width:980px}
+  .acct-wide{max-width:1200px}
+  .pd{grid-template-columns:minmax(400px,460px) minmax(0,1fr);gap:22px 44px}
+  .hero-art{max-width:480px}
+  .hero-copy h1{font-size:clamp(22px,2.4vw,32px)}
+  .page h1{font-size:26px}
+
+  /* ---- 3) grids fill the width (more columns automatically) ---- */
+  .grid{grid-template-columns:repeat(auto-fill,minmax(255px,1fr));gap:18px}
+
+  /* ---- 4) design refresh: hover lift + soft shadows ---- */
+  .card{transition:border-color .2s ease,transform .22s ease,box-shadow .22s ease}
+  .card:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(16,24,40,.09)}
+  .grid .xcard{transition:border-color .2s ease,transform .22s ease,box-shadow .22s ease}
+  .grid .xcard:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(16,24,40,.09)}
+  .stat{transition:border-color .2s ease,transform .2s ease,box-shadow .2s ease}
+  .stat:hover,a.stat:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(16,24,40,.07)}
+  .file-card{transition:border-color .2s ease,transform .2s ease,box-shadow .2s ease}
+  .file-card:hover{transform:translateY(-2px);box-shadow:0 10px 22px rgba(16,24,40,.06)}
+  .qitem,.qprev{transition:border-color .2s ease,box-shadow .2s ease}
+  .qitem:hover,.qprev:hover{box-shadow:0 8px 18px rgba(16,24,40,.06)}
+
+  /* primary buttons: soft green glow */
+  .btn-p{box-shadow:0 2px 10px rgba(16,163,127,.26)}
+  .btn-p:hover{box-shadow:0 5px 18px rgba(16,163,127,.38)}
+  .btn-p:active{transform:scale(.97);box-shadow:0 1px 6px rgba(16,163,127,.3)}
+
+  /* topbar: gentle elevation instead of a flat line */
+  .topbar{box-shadow:0 1px 0 rgba(16,24,40,.05),0 6px 24px rgba(16,24,40,.05)}
+
+  /* admin tables breathe on wide screens */
+  .rt th,.rt td{padding:13px 18px}
+
+  /* hero chip glow */
+  .hero-chip{box-shadow:0 2px 8px rgba(16,163,127,.14)}
+}
+
+/* ---- ultra-wide screens (>=1500px): even more room ---- */
+@media (min-width:1500px){
+  .grid{grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:22px}
+  .hero-art{max-width:540px}
+  .page h1{font-size:30px}
+  .pd{grid-template-columns:minmax(430px,500px) minmax(0,1fr)}
+  .stats{grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px}
+}
 </style>
 </head>
 <body>
@@ -750,15 +809,21 @@ a.stat:hover{border-color:var(--primary)}
 
 <main>{% block content %}{% endblock %}</main>
 
-<!-- ============ CONFIRM MODAL (bottom sheet on mobile) ============ -->
+<!-- ============ CONFIRM MODAL (bottom sheet on mobile) ============
+     Generic dialog used by every <form data-confirm="message">.
+     Optional attributes on the form:
+       data-confirm-kind="safe"        -> green action button (default: red Delete)
+       data-confirm-ok="Sync now"      -> custom OK button label
+       data-confirm-title="Sync data"  -> custom modal title -->
 <div class="modal-back" id="modalBack">
   <div class="modal" role="dialog" aria-modal="true">
     <div class="modal-ic"><svg class="ic ic-l"><use href="#i-alert"></use></svg></div>
     <h3 id="modalTitle">Please confirm</h3>
     <p id="modalMsg"></p>
     <div class="modal-acts">
-      <button class="btn btn-sec" id="modalCancel">Cancel</button>
-      <button class="btn btn-danger" id="modalOk"><svg class="ic ic-s"><use href="#i-trash"></use></svg>Delete</button>
+      <button class="btn btn-sec" id="modalCancel" type="button">Cancel</button>
+      <button class="btn btn-danger" id="modalOk" type="button">
+        <svg class="ic ic-s"><use href="#i-trash"></use></svg><span id="modalOkLabel">Delete</span></button>
     </div>
   </div>
 </div>
@@ -771,131 +836,159 @@ a.stat:hover{border-color:var(--primary)}
 
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
 <script>
+/* ================= 1) TOASTS =================
+   toast(message, type) is used by the buy-buttons on the product/exam pages;
+   flashed messages (server-side) auto-hide the same way. */
 (function () {
-  "use strict";
-  const $ = s => document.querySelector(s);
+  var box = document.getElementById("toasts");
 
-  /* ---------- toast helper ---------- */
-  function toast(msg, cat) {
-    cat = cat || "info";
-    const z = $("#toasts"); if (!z) return;
-    const el = document.createElement("div");
-    el.className = "toast " + cat;
-    const ic = cat === "success" ? "i-check-c" : (cat === "error" ? "i-alert" : "i-info");
-    el.innerHTML = '<svg class="ic ic-s" style="margin-top:2px"><use href="#' + ic + '"/></svg><span></span>';
-    el.querySelector("span").textContent = msg;
-    z.appendChild(el);
-    setTimeout(() => { el.classList.add("hide"); setTimeout(() => el.remove(), 320); }, 4000);
-  }
-  window.toast = toast;
+  window.toast = function (message, type) {
+    if (!box) return;
+    var el = document.createElement("div");
+    el.className = "toast " + (type || "info");
+    var icon = type === "success" ? "i-check-c" : (type === "error" ? "i-alert" : "i-info");
+    el.innerHTML = '<svg class="ic ic-s" style="margin-top:2px"><use href="#' + icon + '"></use></svg><span></span>';
+    el.querySelector("span").textContent = message;
+    box.appendChild(el);
+    setTimeout(function () {
+      el.classList.add("hide");
+      setTimeout(function () { if (el.parentNode) el.remove(); }, 350);
+    }, 4200);
+  };
 
-  /* ---------- flash toasts auto-hide ---------- */
-  document.querySelectorAll(".toast").forEach(el => {
-    setTimeout(() => { el.classList.add("hide"); setTimeout(() => el.remove(), 320); }, 4200);
+  /* auto-hide server flash toasts */
+  (box ? box.querySelectorAll(".toast") : []).forEach(function (el) {
+    setTimeout(function () {
+      el.classList.add("hide");
+      setTimeout(function () { if (el.parentNode) el.remove(); }, 350);
+    }, 4200);
   });
+})();
 
-  /* ---------- MOBILE SIDEBAR MENU ---------- */
-  const sb = document.getElementById("sidebar");
-  const scrim = document.getElementById("scrim");
-  function openSb() {
-    if (!sb) return;
-    sb.classList.add("open");
+/* ================= 2) MOBILE SIDEBAR ================= */
+(function () {
+  var open = document.getElementById("navOpen");
+  var close = document.getElementById("navClose");
+  var sidebar = document.getElementById("sidebar");
+  var scrim = document.getElementById("scrim");
+  if (!open || !sidebar) return;
+
+  function openMenu() {
+    sidebar.classList.add("open");
+    sidebar.setAttribute("aria-hidden", "false");
     if (scrim) scrim.classList.add("show");
     document.body.classList.add("lock");
-    sb.setAttribute("aria-hidden", "false");
   }
-  function closeSb() {
-    if (!sb) return;
-    sb.classList.remove("open");
+  function closeMenu() {
+    sidebar.classList.remove("open");
+    sidebar.setAttribute("aria-hidden", "true");
     if (scrim) scrim.classList.remove("show");
     document.body.classList.remove("lock");
-    sb.setAttribute("aria-hidden", "true");
   }
-  const navOpen = document.getElementById("navOpen");
-  const navClose = document.getElementById("navClose");
-  if (navOpen) navOpen.addEventListener("click", e => { e.preventDefault(); openSb(); });
-  if (navClose) navClose.addEventListener("click", e => { e.preventDefault(); closeSb(); });
-  if (scrim) scrim.addEventListener("click", closeSb);
-  if (sb) sb.querySelectorAll("a").forEach(a => a.addEventListener("click", closeSb));
-  window.addEventListener("resize", () => { if (window.innerWidth > 860) closeSb(); });
-  document.addEventListener("keydown", e => {
-    if (e.key === "Escape") { closeSb(); closeModal(); closeLb(); }
+  open.addEventListener("click", openMenu);
+  if (close) close.addEventListener("click", closeMenu);
+  if (scrim) scrim.addEventListener("click", closeMenu);
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape") closeMenu();
   });
+})();
 
-  /* ---------- confirm modal (forms with data-confirm) ---------- */
-  let pendingForm = null;
-  function closeModal() {
-    const m = $("#modalBack");
-    if (m) m.classList.remove("show");
-    pendingForm = null;
-  }
-  function showModal(msg) {
-    const m = $("#modalBack"); if (!m) return;
-    const p = $("#modalMsg"); if (p) p.textContent = msg || "Are you sure?";
-    m.classList.add("show");
-  }
-  document.addEventListener("submit", e => {
-    const f = e.target;
-    if (f && f.matches && f.matches("form[data-confirm]") && f.dataset.confirmed !== "1") {
-      e.preventDefault();
-      pendingForm = f;
-      showModal(f.getAttribute("data-confirm"));
+/* ================= 3) CONFIRM MODAL (action-aware) =================
+   Every <form data-confirm="..."> is intercepted: the submit is stopped,
+   the modal opens with the message, and OK submits the form for real.
+   data-confirm-kind="safe" -> green "Confirm"; data-confirm-ok="Sync now"
+   -> custom label; data-confirm-title -> custom title. */
+(function () {
+  var back = document.getElementById("modalBack");
+  if (!back) return;
+  var okBtn = document.getElementById("modalOk");
+  var cancelBtn = document.getElementById("modalCancel");
+  var titleEl = document.getElementById("modalTitle");
+  var msgEl = document.getElementById("modalMsg");
+  var pending = null;
+
+  function styleOk(form) {
+    var safe = form.getAttribute("data-confirm-kind") === "safe";
+    var label = form.getAttribute("data-confirm-ok") || (safe ? "Confirm" : "Delete");
+    var icon = safe ? "#i-check" : "#i-trash";
+    okBtn.className = "btn " + (safe ? "btn-p" : "btn-danger");
+    okBtn.innerHTML = '<svg class="ic ic-s"><use href="' + icon + '"></use></svg>' + label;
+    var ic = back.querySelector(".modal-ic");
+    if (ic) {
+      var use = ic.querySelector("use");
+      if (use) use.setAttribute("href", safe ? "#i-check" : "#i-alert");
+      ic.style.background = safe ? "var(--primary-soft)" : "";
+      ic.style.color = safe ? "var(--primary)" : "";
     }
-  }, true);
-  const mOk = $("#modalOk");
-  if (mOk) mOk.addEventListener("click", () => {
-    if (pendingForm) { pendingForm.dataset.confirmed = "1"; pendingForm.submit(); }
-    closeModal();
-  });
-  const mCancel = $("#modalCancel");
-  if (mCancel) mCancel.addEventListener("click", closeModal);
-  const mBack = $("#modalBack");
-  if (mBack) mBack.addEventListener("click", e => { if (e.target === mBack) closeModal(); });
+  }
 
-  /* ---------- upload fields: show chosen file name ---------- */
-  document.querySelectorAll('.up-field input[type="file"]').forEach(inp => {
-    inp.addEventListener("change", () => {
-      const wrap = inp.closest(".up-field");
-      const nameEl = wrap ? wrap.querySelector(".up-name") : null;
-      if (nameEl) {
-        nameEl.textContent = (inp.files && inp.files.length)
-          ? inp.files[0].name
-          : (nameEl.dataset.default || "");
-      }
+  function close() {
+    back.classList.remove("show");
+    pending = null;
+  }
+
+  document.querySelectorAll("form[data-confirm]").forEach(function (form) {
+    form.addEventListener("submit", function (ev) {
+      ev.preventDefault();
+      pending = form;
+      if (msgEl) msgEl.textContent = form.getAttribute("data-confirm") || "Are you sure?";
+      if (titleEl) titleEl.textContent = form.getAttribute("data-confirm-title") || "Please confirm";
+      styleOk(form);
+      back.classList.add("show");
     });
   });
 
-  /* ---------- full-size image lightbox ---------- */
-  const lb = document.getElementById("lightbox");
-  const lbImg = document.getElementById("lightboxImg");
-  function closeLb() { if (lb) lb.classList.remove("show"); }
-  document.querySelectorAll("[data-full]").forEach(el => {
-    el.addEventListener("click", e => {
-      e.preventDefault();
-      if (!lb || !lbImg) return;
-      lbImg.src = el.getAttribute("data-full");
+  okBtn.addEventListener("click", function () {
+    if (!pending) return;
+    var form = pending;
+    close();
+    form.submit();     /* programmatic submit: does NOT re-fire the submit event */
+  });
+  if (cancelBtn) cancelBtn.addEventListener("click", close);
+  back.addEventListener("click", function (ev) { if (ev.target === back) close(); });
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape" && back.classList.contains("show")) close();
+  });
+})();
+
+/* ================= 4) FULL-SIZE IMAGE LIGHTBOX =================
+   Any <img class="zoomable" data-full="..."> opens full size. */
+(function () {
+  var lb = document.getElementById("lightbox");
+  var img = document.getElementById("lightboxImg");
+  if (!lb || !img) return;
+  document.querySelectorAll("img.zoomable").forEach(function (el) {
+    el.addEventListener("click", function () {
+      img.src = el.getAttribute("data-full") || el.src;
       lb.classList.add("show");
     });
   });
-  if (lb) lb.addEventListener("click", closeLb);
+  lb.addEventListener("click", function () { lb.classList.remove("show"); });
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key === "Escape") lb.classList.remove("show");
+  });
+})();
 
-  /* ---------- BUY NOW / Razorpay checkout (supports multiple buy buttons) ---------- */
-  const buyBtns = Array.from(document.querySelectorAll("[data-buy]"));
-  function setBuyDisabled(state) { buyBtns.forEach(b => { b.disabled = state; }); }
+/* ================= 5) PRODUCT CHECKOUT (Razorpay) =================
+   Buttons with [data-buy][data-product-id] (product page + sticky bar). */
+(function () {
+  "use strict";
+  function setDisabled(btns, state) { btns.forEach(function (b) { b.disabled = state; }); }
 
-  buyBtns.forEach(btn => {
-    btn.addEventListener("click", async () => {
+  document.querySelectorAll("[data-buy]").forEach(function (btn) {
+    btn.addEventListener("click", async function () {
       if (btn.disabled) return;
-      setBuyDisabled(true);
-      const pid = btn.getAttribute("data-product-id");
+      var all = Array.prototype.slice.call(document.querySelectorAll("[data-buy]"));
+      setDisabled(all, true);
+      var pid = btn.getAttribute("data-product-id");
       try {
         const res = await fetch("/api/create-order/" + pid, { method: "POST" });
         let data = {}; try { data = await res.json(); } catch (_) {}
-        if (!res.ok) { toast(data.error || "Could not start checkout.", "error"); setBuyDisabled(false); return; }
+        if (!res.ok) { toast(data.error || "Could not start checkout.", "error"); setDisabled(all, false); return; }
 
         if (data.success && data.redirect_url) {
-          toast("Added to your library!", "success");
-          setTimeout(() => { window.location.href = data.redirect_url; }, 700);
+          toast("Purchase complete!", "success");
+          setTimeout(function () { window.location.href = data.redirect_url; }, 700);
           return;
         }
 
@@ -907,18 +1000,18 @@ a.stat:hover{border-color:var(--primary)}
           });
           let vd = {}; try { vd = await v.json(); } catch (_) {}
           if (v.ok && vd.success) {
-            toast("Purchase successful!", "success");
-            setTimeout(() => { window.location.href = vd.redirect_url; }, 700);
+            toast("Purchase complete!", "success");
+            setTimeout(function () { window.location.href = vd.redirect_url; }, 700);
           } else {
             toast(vd.error || "Demo checkout failed.", "error");
-            setBuyDisabled(false);
+            setDisabled(all, false);
           }
           return;
         }
 
         if (typeof Razorpay === "undefined") {
           toast("Payment library failed to load. Check your connection.", "error");
-          setBuyDisabled(false);
+          setDisabled(all, false);
           return;
         }
 
@@ -940,27 +1033,27 @@ a.stat:hover{border-color:var(--primary)}
               });
               let vd = {}; try { vd = await v.json(); } catch (_) {}
               if (v.ok && vd.success) {
-                toast("Purchase successful!", "success");
-                setTimeout(() => { window.location.href = vd.redirect_url; }, 700);
+                toast("Purchase complete!", "success");
+                setTimeout(function () { window.location.href = vd.redirect_url; }, 700);
               } else {
                 toast(vd.error || "Payment verification failed.", "error");
-                setBuyDisabled(false);
+                setDisabled(all, false);
               }
             } catch (err) {
               toast("Verification request failed.", "error");
-              setBuyDisabled(false);
+              setDisabled(all, false);
             }
           },
-          modal: { ondismiss: function () { setBuyDisabled(false); } }
+          modal: { ondismiss: function () { setDisabled(all, false); } }
         });
         rzp.on("payment.failed", function () {
           toast("Payment failed. Please try again.", "error");
-          setBuyDisabled(false);
+          setDisabled(all, false);
         });
         rzp.open();
       } catch (err) {
         toast("Network error. Please try again.", "error");
-        setBuyDisabled(false);
+        setDisabled(all, false);
       }
     });
   });
